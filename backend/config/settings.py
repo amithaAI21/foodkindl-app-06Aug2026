@@ -20,14 +20,24 @@ DEBUG = os.environ.get(
     "False",
 ).lower() == "true"
 
+
 def get_env_list(name, default=""):
+    value = os.environ.get(name)
+
+    if value is None:
+        value = default
+
+    if isinstance(value, (list, tuple)):
+        return [
+            str(item).strip().rstrip("/")
+            for item in value
+            if str(item).strip()
+        ]
+
     return [
-        value.strip()
-        for value in os.environ.get(
-            name,
-            default,
-        ).split(",")
-        if value.strip()
+        item.strip().rstrip("/")
+        for item in str(value).split(",")
+        if item.strip()
     ]
 
 
@@ -35,6 +45,7 @@ ALLOWED_HOSTS = get_env_list(
     "DJANGO_ALLOWED_HOSTS",
     "localhost,127.0.0.1,.onrender.com",
 )
+
 
 
 # -------------------------------------------------------------------
@@ -185,8 +196,8 @@ CORS_ALLOWED_ORIGINS = get_env_list(
     "CORS_ALLOWED_ORIGINS",
     (
         "http://localhost:5173,"
-        "http://127.0.0.1:5173",
-        "https://foodkindl-app.netlify.app/"
+        "http://127.0.0.1:5173,"
+        "https://foodkindl-app.netlify.app"
     ),
 )
 
@@ -195,6 +206,7 @@ CSRF_TRUSTED_ORIGINS = get_env_list(
     (
         "http://localhost:5173,"
         "http://127.0.0.1:5173,"
+        "https://foodkindl-app.netlify.app,"
         "https://*.onrender.com"
     ),
 )
