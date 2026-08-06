@@ -345,47 +345,39 @@ export default function Community() {
   }
 
   function addCurrentLocation() {
-    setError("");
-    setSuccess("");
+  setError("");
+  setSuccess("");
 
-    if (!navigator.geolocation) {
-      setError(
-        "Location services are not supported by this browser."
-      );
-      return;
-    }
-
-    setLocating(true);
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setForm((previous) => ({
-          ...previous,
-          latitude:
-            position.coords.latitude.toString(),
-          longitude:
-            position.coords.longitude.toString(),
-        }));
-
-        setSuccess(
-          "Current location coordinates added."
-        );
-
-        setLocating(false);
-      },
-      () => {
-        setError(
-          "FoodKindl could not access your location."
-        );
-
-        setLocating(false);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-      }
+  if (!navigator.geolocation) {
+    setError(
+      "Location services are not supported by this browser."
     );
+    return;
   }
+
+  setLocating(true);
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      setForm((previous) => ({
+        ...previous,
+        latitude: Number(position.coords.latitude).toFixed(6),
+        longitude: Number(position.coords.longitude).toFixed(6),
+      }));
+
+      setSuccess("Current location coordinates added.");
+      setLocating(false);
+    },
+    () => {
+      setError("FoodKindl could not access your location.");
+      setLocating(false);
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+    }
+  );
+}
 
   async function reactToPost(
     event,
