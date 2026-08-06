@@ -23,6 +23,7 @@ export default function Profile() {
     interests: profile.interests || "",
     dietary_preference: profile.dietary_preference || "none",
     women_only_mode: profile.women_only_mode || false,
+    government_id_type: profile.government_id_type || "",
   });
 
   const [files, setFiles] = useState(initialFiles);
@@ -48,6 +49,7 @@ export default function Profile() {
       interests: profile.interests || "",
       dietary_preference: profile.dietary_preference || "none",
       women_only_mode: profile.women_only_mode || false,
+      government_id_type: profile.government_id_type || "",
     });
 
     setPreviews({
@@ -94,6 +96,17 @@ export default function Profile() {
 
     setMessage("");
     setError("");
+
+    if (
+      files.government_id &&
+      !form.government_id_type
+    ) {
+      setError(
+        "Please select the Government ID type."
+      );
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -114,6 +127,11 @@ export default function Profile() {
       formData.append(
         "women_only_mode",
         form.women_only_mode ? "true" : "false"
+      );
+
+      formData.append(
+        "government_id_type",
+        form.government_id_type
       );
 
       if (files.profile_image_1) {
@@ -171,6 +189,7 @@ export default function Profile() {
           data?.profile_image_2?.[0] ||
           data?.profile_image_3?.[0] ||
           data?.government_id?.[0] ||
+          data?.government_id_type?.[0] ||
           data?.postcode?.[0] ||
           data?.college_workplace?.[0] ||
           data?.role?.[0] ||
@@ -413,6 +432,26 @@ export default function Profile() {
           </p>
 
           <label>
+            Government ID Type
+            <select
+              name="government_id_type"
+              value={form.government_id_type}
+              onChange={handleInputChange}
+              required={Boolean(files.government_id)}
+            >
+              <option value="">Select ID type</option>
+              <option value="aadhaar">Aadhaar Card</option>
+              <option value="passport">Passport</option>
+              <option value="driving_licence">
+                Driving Licence
+              </option>
+              <option value="voter_id">Voter ID</option>
+              <option value="pan">PAN Card</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+
+          <label>
             Government ID Proof
             <input
               type="file"
@@ -425,6 +464,20 @@ export default function Profile() {
           {profile.government_id_uploaded && (
             <p className="existing-file-message">
               A government ID has already been uploaded.
+            </p>
+          )}
+
+          <p className="existing-file-message">
+            Verification status:{" "}
+            <strong>
+              {(profile.verification_status || "not_submitted")
+                .replaceAll("_", " ")}
+            </strong>
+          </p>
+
+          {profile.rejection_reason && (
+            <p className="error-message">
+              Rejection reason: {profile.rejection_reason}
             </p>
           )}
         </section>
