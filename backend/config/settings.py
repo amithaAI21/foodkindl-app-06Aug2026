@@ -7,6 +7,25 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 # -------------------------------------------------------------------
+# Environment helper
+# -------------------------------------------------------------------
+
+def get_env_list(name, default=""):
+    value = os.environ.get(name, default)
+
+    if isinstance(value, (list, tuple)):
+        items = value
+    else:
+        items = str(value).split(",")
+
+    return [
+        str(item).strip().rstrip("/")
+        for item in items
+        if str(item).strip()
+    ]
+
+
+# -------------------------------------------------------------------
 # Core settings
 # -------------------------------------------------------------------
 
@@ -18,34 +37,18 @@ SECRET_KEY = os.environ.get(
 DEBUG = os.environ.get(
     "DEBUG",
     "False",
-).lower() == "true"
-
-
-def get_env_list(name, default=""):
-    value = os.environ.get(name)
-
-    if value is None:
-        value = default
-
-    if isinstance(value, (list, tuple)):
-        return [
-            str(item).strip().rstrip("/")
-            for item in value
-            if str(item).strip()
-        ]
-
-    return [
-        item.strip().rstrip("/")
-        for item in str(value).split(",")
-        if item.strip()
-    ]
+).strip().lower() == "true"
 
 
 ALLOWED_HOSTS = get_env_list(
     "DJANGO_ALLOWED_HOSTS",
-    "localhost,127.0.0.1,.onrender.com",
+    (
+        "localhost,"
+        "127.0.0.1,"
+        "foodkindl-api.onrender.com,"
+        ".onrender.com"
+    ),
 )
-
 
 
 # -------------------------------------------------------------------
@@ -75,11 +78,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-
-    # Serves Django static files on Render.
     "whitenoise.middleware.WhiteNoiseMiddleware",
 
-    # Must be above CommonMiddleware.
+    # Keep CORS middleware above CommonMiddleware.
     "corsheaders.middleware.CorsMiddleware",
 
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -92,7 +93,7 @@ MIDDLEWARE = [
 
 
 # -------------------------------------------------------------------
-# URLs and templates
+# URLs, templates and WSGI
 # -------------------------------------------------------------------
 
 ROOT_URLCONF = "config.urls"
@@ -197,7 +198,7 @@ CORS_ALLOWED_ORIGINS = get_env_list(
     (
         "http://localhost:5173,"
         "http://127.0.0.1:5173,"
-        "https://foodkindl-app.netlify.app"
+        "https://foodkindlapp.netlify.app"
     ),
 )
 
@@ -206,8 +207,8 @@ CSRF_TRUSTED_ORIGINS = get_env_list(
     (
         "http://localhost:5173,"
         "http://127.0.0.1:5173,"
-        "https://foodkindl-app.netlify.app,"
-        "https://*.onrender.com"
+        "https://foodkindlapp.netlify.app,"
+        "https://foodkindl-api.onrender.com"
     ),
 )
 
@@ -244,17 +245,13 @@ REST_FRAMEWORK = {
 # -------------------------------------------------------------------
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(
-        hours=4,
-    ),
-    "REFRESH_TOKEN_LIFETIME": timedelta(
-        days=14,
-    ),
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=4),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=14),
 }
 
 
 # -------------------------------------------------------------------
-# Render HTTPS settings
+# Render HTTPS and security
 # -------------------------------------------------------------------
 
 SECURE_PROXY_SSL_HEADER = (
@@ -273,9 +270,12 @@ X_FRAME_OPTIONS = "DENY"
 # Default primary key
 # -------------------------------------------------------------------
 
-DEFAULT_AUTO_FIELD = (
-    "django.db.models.BigAutoField"
-)
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+# -------------------------------------------------------------------
+# Logging
+# -------------------------------------------------------------------
 
 LOGGING = {
     "version": 1,
