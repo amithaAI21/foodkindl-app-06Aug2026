@@ -18,7 +18,7 @@ import Connect from "./pages/Connect";
 import MemberProfile from "./pages/MemberProfile";
 import Profile from "./pages/Profile";
 import VerificationRequired from "./pages/VerificationRequired";
-
+import AIKitchen from "./pages/AIKitchen";
 import { useAuth } from "./context/AuthContext";
 
 
@@ -27,15 +27,20 @@ function Protected({ children }) {
 
   if (loading) {
     return (
-      <div className="screen-center">
+      <main className="app-page">
         Loading FoodKindl...
-      </div>
+      </main>
     );
   }
 
   return user
     ? children
-    : <Navigate to="/login" replace />;
+    : (
+      <Navigate
+        to="/login"
+        replace
+      />
+    );
 }
 
 
@@ -44,9 +49,9 @@ function VerifiedOnly({ children }) {
 
   if (loading) {
     return (
-      <div className="screen-center">
+      <main className="app-page">
         Checking verification...
-      </div>
+      </main>
     );
   }
 
@@ -60,7 +65,7 @@ function VerifiedOnly({ children }) {
   }
 
   const approved =
-    user?.profile?.is_verified &&
+    user?.profile?.is_verified === true &&
     user?.profile?.verification_status ===
       "approved";
 
@@ -79,7 +84,7 @@ export default function App() {
   const { user } = useAuth();
 
   const verified =
-    user?.profile?.is_verified &&
+    user?.profile?.is_verified === true &&
     user?.profile?.verification_status ===
       "approved";
 
@@ -113,6 +118,15 @@ export default function App() {
         />
 
         <Route
+        path="/ai-kitchen"
+        element={
+          <Protected>
+            <AIKitchen />
+          </Protected>
+        }
+      />
+
+        <Route
           path="/verification-required"
           element={
             <Protected>
@@ -121,23 +135,32 @@ export default function App() {
           }
         />
 
+        {/* ---------------------------------
+            COMMUNIQ — LOGIN ONLY
+            NO GOVERNMENT ID VERIFICATION
+        ---------------------------------- */}
+
         <Route
           path="/community"
           element={
-            <VerifiedOnly>
+            <Protected>
               <Community />
-            </VerifiedOnly>
+            </Protected>
           }
         />
 
         <Route
           path="/community/post/:postId"
           element={
-            <VerifiedOnly>
+            <Protected>
               <CommunityPostDetail />
-            </VerifiedOnly>
+            </Protected>
           }
         />
+
+        {/* ---------------------------------
+            CONNECT — ID VERIFICATION REQUIRED
+        ---------------------------------- */}
 
         <Route
           path="/connect"
@@ -186,6 +209,7 @@ export default function App() {
         />
       </Routes>
 
+      {/* Private messaging remains verified-only */}
       {verified && <MessagingDock />}
     </>
   );

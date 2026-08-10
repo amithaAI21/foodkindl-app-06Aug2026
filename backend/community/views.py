@@ -1,6 +1,5 @@
 from django.contrib.auth.models import User
 from django.db.models import F, Prefetch, Q, Sum
-
 from rest_framework import generics, permissions, status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -35,21 +34,19 @@ from .serializers import (
 
 class PostViewSet(viewsets.ModelViewSet):
     serializer_class = PostSerializer
-
     permission_classes = [
         permissions.IsAuthenticated,
         IsVerifiedMember,
         IsOwnerOrReadOnly,
     ]
-
     parser_classes = [
         MultiPartParser,
         FormParser,
         JSONParser,
     ]
 
-    def get_queryset(self):
-        queryset = (
+    def base_queryset(self):
+        return (
             Post.objects
             .select_related(
                 "author",
@@ -68,9 +65,10 @@ class PostViewSet(viewsets.ModelViewSet):
                     ),
                 ),
             )
-            .all()
-            .order_by("-created_at")
         )
+
+    def get_queryset(self):
+        queryset = self.base_queryset().order_by("-created_at")
 
         if (
             self.action == "list"
@@ -83,21 +81,140 @@ class PostViewSet(viewsets.ModelViewSet):
         return queryset
 
     def perform_create(self, serializer):
-        serializer.save(
-            author=self.request.user
+        serializer.save(author=self.request.user)
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="my-posts",
+        permission_classes=[
+            permissions.IsAuthenticated,
+            IsVerifiedMember,
+        ],
+    )
+    def my_posts(self, request):
+        posts = (
+            self.base_queryset()
+            .filter(author=request.user)
+            .order_by("-created_at")
+        )
+
+        serializer = PostSerializer(
+            posts,
+            many=True,
+            context={"request": request},
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="reposts",
+        permission_classes=[
+            permissions.IsAuthenticated,
+            IsVerifiedMember,
+        ],
+    )
+    def reposts(self, request):
+        reposts = (
+            SharedPost.objects
+            .select_related(
+                "shared_by",
+                "shared_by__profile",
+                "original_post",
+                "original_post__author",
+                "original_post__author__profile",
+            )
+            .prefetch_related(
+                "original_post__reactions",
+                "original_post__saved_by",
+                "original_post__unique_views",
+                "original_post__community_shares",
+                "original_post__comments",
+            )
+            .exclude(shared_by=request.user)
+            .order_by("-created_at")
+        )
+
+        serializer = SharedPostSerializer(
+            reposts,
+            many=True,
+            context={"request": request},
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="user-reposts",
+        permission_classes=[
+            permissions.IsAuthenticated,
+            IsVerifiedMember,
+        ],
+    )
+    def user_reposts(self, request):
+        user_id = request.query_params.get("user_id")
+
+        if not user_id:
+            return Response(
+                {
+                    "user_id": (
+                        "User ID is required."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        reposts = (
+            SharedPost.objects
+            .filter(shared_by_id=user_id)
+            .select_related(
+                "shared_by",
+                "shared_by__profile",
+                "original_post",
+                "original_post__author",
+                "original_post__author__profile",
+            )
+            .prefetch_related(
+                "original_post__reactions",
+                "original_post__saved_by",
+                "original_post__unique_views",
+                "original_post__community_shares",
+                "original_post__comments",
+            )
+            .order_by("-created_at")
+        )
+
+        serializer = SharedPostSerializer(
+            reposts,
+            many=True,
+            context={"request": request},
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
         )
 
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[permissions.IsAuthenticated, IsVerifiedMember],
+        permission_classes=[
+            permissions.IsAuthenticated,
+            IsVerifiedMember,
+        ],
     )
     def react(self, request, pk=None):
         post = self.get_object()
-
-        reaction_type = request.data.get(
-            "reaction_type"
-        )
+        reaction_type = request.data.get("reaction_type")
 
         valid_reactions = {
             "like",
@@ -110,20 +227,16 @@ class PostViewSet(viewsets.ModelViewSet):
 
         if reaction_type not in valid_reactions:
             return Response(
-                {
-                    "detail": "Invalid reaction type."
-                },
+                {"detail": "Invalid reaction type."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        reaction, created = (
-            PostReaction.objects.update_or_create(
-                post=post,
-                user=request.user,
-                defaults={
-                    "reaction_type": reaction_type,
-                },
-            )
+        reaction, _ = PostReaction.objects.update_or_create(
+            post=post,
+            user=request.user,
+            defaults={
+                "reaction_type": reaction_type,
+            },
         )
 
         serializer = self.get_serializer(post)
@@ -141,7 +254,10 @@ class PostViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["delete"],
-        permission_classes=[permissions.IsAuthenticated, IsVerifiedMember],
+        permission_classes=[
+            permissions.IsAuthenticated,
+            IsVerifiedMember,
+        ],
     )
     def remove_reaction(self, request, pk=None):
         post = self.get_object()
@@ -166,7 +282,10 @@ class PostViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[permissions.IsAuthenticated, IsVerifiedMember],
+        permission_classes=[
+            permissions.IsAuthenticated,
+            IsVerifiedMember,
+        ],
     )
     def toggle_save(self, request, pk=None):
         post = self.get_object()
@@ -179,9 +298,7 @@ class PostViewSet(viewsets.ModelViewSet):
         if not created:
             saved_post.delete()
 
-        return Response({
-            "saved": created,
-        })
+        return Response({"saved": created})
 
     @action(
         detail=True,
@@ -216,15 +333,29 @@ class PostViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[permissions.IsAuthenticated, IsVerifiedMember],
+        permission_classes=[
+            permissions.IsAuthenticated,
+            IsVerifiedMember,
+        ],
     )
     def share_to_community(self, request, pk=None):
         post = self.get_object()
 
-        message = request.data.get(
-            "message",
-            "",
+        message = (
+            request.data.get("message", "")
+            or ""
         ).strip()
+
+        if len(message) > 2000:
+            return Response(
+                {
+                    "message": (
+                        "Repost message cannot exceed "
+                        "2,000 characters."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         shared_post = SharedPost.objects.create(
             original_post=post,
@@ -232,24 +363,27 @@ class PostViewSet(viewsets.ModelViewSet):
             message=message,
         )
 
-        Post.objects.filter(
-            pk=post.pk
-        ).update(
+        Post.objects.filter(pk=post.pk).update(
             share_count=F("share_count") + 1
         )
 
+        serializer = SharedPostSerializer(
+            shared_post,
+            context={"request": request},
+        )
+
         return Response(
-            SharedPostSerializer(
-                shared_post,
-                context={"request": request},
-            ).data,
+            serializer.data,
             status=status.HTTP_201_CREATED,
         )
 
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[permissions.IsAuthenticated, IsVerifiedMember],
+        permission_classes=[
+            permissions.IsAuthenticated,
+            IsVerifiedMember,
+        ],
     )
     def add_comment(self, request, pk=None):
         post = self.get_object()
@@ -259,9 +393,7 @@ class PostViewSet(viewsets.ModelViewSet):
             context={"request": request},
         )
 
-        serializer.is_valid(
-            raise_exception=True
-        )
+        serializer.is_valid(raise_exception=True)
 
         comment = serializer.save(
             post=post,
@@ -275,21 +407,19 @@ class PostViewSet(viewsets.ModelViewSet):
             ).data,
             status=status.HTTP_201_CREATED,
         )
-    
+
+
 class FoodListingViewSet(viewsets.ModelViewSet):
     serializer_class = FoodListingSerializer
-
     permission_classes = [
         permissions.IsAuthenticatedOrReadOnly,
         IsOwnerOrReadOnly,
     ]
-
     parser_classes = [
         MultiPartParser,
         FormParser,
         JSONParser,
     ]
-
     queryset = (
         FoodListing.objects
         .select_related(
@@ -302,24 +432,18 @@ class FoodListingViewSet(viewsets.ModelViewSet):
     )
 
     def perform_create(self, serializer):
-        serializer.save(
-            owner=self.request.user
-        )
+        serializer.save(owner=self.request.user)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(
             data=request.data
         )
-
-        serializer.is_valid(
-            raise_exception=True
-        )
+        serializer.is_valid(raise_exception=True)
 
         listing = serializer.save(
             owner=request.user
         )
 
-        # Create one food-group conversation for this listing.
         conversation = Conversation.objects.create(
             conversation_type="food_group",
             title=f"Food Sharing: {listing.title}",
@@ -327,7 +451,6 @@ class FoodListingViewSet(viewsets.ModelViewSet):
             is_active=True,
         )
 
-        # Add every active registered user.
         registered_users = User.objects.filter(
             is_active=True
         )
@@ -336,22 +459,14 @@ class FoodListingViewSet(viewsets.ModelViewSet):
             registered_users
         )
 
-        conversation_serializer = (
-            ConversationSerializer(
-                conversation,
-                context={
-                    "request": request,
-                },
-            )
+        conversation_serializer = ConversationSerializer(
+            conversation,
+            context={"request": request},
         )
 
-        listing_serializer = (
-            self.get_serializer(
-                listing,
-                context={
-                    "request": request,
-                },
-            )
+        listing_serializer = self.get_serializer(
+            listing,
+            context={"request": request},
         )
 
         return Response(
@@ -423,9 +538,7 @@ class FoodListingViewSet(viewsets.ModelViewSet):
         return Response(
             self.get_serializer(
                 listing,
-                context={
-                    "request": request,
-                },
+                context={"request": request},
             ).data,
             status=status.HTTP_200_OK,
         )
@@ -490,9 +603,7 @@ class FoodListingViewSet(viewsets.ModelViewSet):
         return Response(
             ConversationSerializer(
                 conversation,
-                context={
-                    "request": request,
-                },
+                context={"request": request},
             ).data,
             status=status.HTTP_200_OK,
         )
@@ -543,7 +654,6 @@ class FoodListingViewSet(viewsets.ModelViewSet):
             )
 
         listing.status = "collected"
-
         listing.save(
             update_fields=["status"]
         )
@@ -556,7 +666,6 @@ class FoodListingViewSet(viewsets.ModelViewSet):
 
         if conversation:
             conversation.is_active = False
-
             conversation.save(
                 update_fields=[
                     "is_active",
@@ -567,18 +676,13 @@ class FoodListingViewSet(viewsets.ModelViewSet):
         return Response(
             self.get_serializer(
                 listing,
-                context={
-                    "request": request,
-                },
+                context={"request": request},
             ).data,
             status=status.HTTP_200_OK,
         )
-    
-class InvitationViewSet(viewsets.ModelViewSet):
-    """
-    Returns invitations sent or received by the logged-in user.
-    """
 
+
+class InvitationViewSet(viewsets.ModelViewSet):
     serializer_class = InvitationSerializer
     permission_classes = [
         permissions.IsAuthenticated,
@@ -656,9 +760,7 @@ class InvitationViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(
             invitation,
-            context={
-                "request": request,
-            },
+            context={"request": request},
         )
 
         return Response(
@@ -705,9 +807,7 @@ class InvitationViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(
             invitation,
-            context={
-                "request": request,
-            },
+            context={"request": request},
         )
 
         return Response(
@@ -729,12 +829,8 @@ def stats(request):
 
     waste_reduced = (
         FoodListing.objects
-        .filter(
-            status="collected"
-        )
-        .aggregate(
-            total=Sum("quantity_kg")
-        )
+        .filter(status="collected")
+        .aggregate(total=Sum("quantity_kg"))
         .get("total")
         or 0
     )
@@ -750,8 +846,10 @@ def stats(request):
         status=status.HTTP_200_OK,
     )
 
+
 class MemberListView(generics.ListAPIView):
     serializer_class = MemberSerializer
+
     permission_classes = [
         permissions.IsAuthenticated,
         IsVerifiedMember,
@@ -760,8 +858,16 @@ class MemberListView(generics.ListAPIView):
     def get_queryset(self):
         queryset = (
             User.objects
-            .filter(is_active=True)
-            .exclude(pk=self.request.user.pk)
+            .filter(
+                is_active=True,
+
+                # Only normal users
+                is_staff=False,
+                is_superuser=False,
+            )
+            .exclude(
+                pk=self.request.user.pk
+            )
             .select_related("profile")
             .order_by(
                 "first_name",
@@ -770,86 +876,69 @@ class MemberListView(generics.ListAPIView):
             )
         )
 
-        first_name = self.request.query_params.get(
-            "first_name",
-            "",
-        ).strip()
+        q = (
+            self.request
+            .query_params
+            .get("q", "")
+            .strip()
+        )
 
-        last_name = self.request.query_params.get(
-            "last_name",
-            "",
-        ).strip()
+        # No search entered:
+        # return all normal FoodKindl members.
+        if not q:
+            return queryset
 
-        college_workplace = self.request.query_params.get(
-            "college_workplace",
-            "",
-        ).strip()
+        normalized_q = (
+            q.lower()
+            .strip()
+            .replace("-", "_")
+            .replace(" ", "_")
+        )
 
-        role = self.request.query_params.get(
-            "role",
-            "",
-        ).strip()
-
-        dietary_preference = self.request.query_params.get(
-            "dietary_preference",
-            "",
-        ).strip()
-
-        location = self.request.query_params.get(
-            "location",
-            "",
-        ).strip()
-
-        postcode = self.request.query_params.get(
-            "postcode",
-            "",
-        ).strip()
-
-        if first_name:
-            queryset = queryset.filter(
-                first_name__icontains=first_name
+        queryset = queryset.filter(
+            Q(
+                first_name__icontains=q
             )
-
-        if last_name:
-            queryset = queryset.filter(
-                last_name__icontains=last_name
+            |
+            Q(
+                last_name__icontains=q
             )
-
-        if college_workplace:
-            queryset = queryset.filter(
-                profile__college_workplace__icontains=(
-                    college_workplace
-                )
+            |
+            Q(
+                email__icontains=q
             )
-
-        if role:
-            queryset = queryset.filter(
-                profile__role__icontains=role
+            |
+            Q(
+                profile__postcode__icontains=q
             )
-
-        if dietary_preference:
-            queryset = queryset.filter(
-                profile__dietary_preference=(
-                    dietary_preference
-                )
+            |
+            Q(
+                profile__city__icontains=q
             )
-
-        if location:
-            queryset = queryset.filter(
-                Q(
-                    profile__city__icontains=location
-                )
-                | Q(
-                    profile__locality__icontains=location
-                )
+            |
+            Q(
+                profile__locality__icontains=q
             )
-
-        if postcode:
-            queryset = queryset.filter(
-                profile__postcode__icontains=postcode
+            |
+            Q(
+                profile__college_workplace__icontains=q
             )
+            |
+            Q(
+                profile__role__icontains=q
+            )
+            |
+            Q(
+                profile__interests__icontains=q
+            )
+            |
+            Q(
+                profile__dietary_preference__icontains=normalized_q
+            )
+        ).distinct()
 
         return queryset
+
 
 class MemberDetailView(generics.RetrieveAPIView):
     serializer_class = MemberSerializer
@@ -857,13 +946,6 @@ class MemberDetailView(generics.RetrieveAPIView):
         permissions.IsAuthenticated,
         IsVerifiedMember,
     ]
-
-    queryset = (
-        User.objects
-        .filter(is_active=True)
-        .select_related("profile")
-    )
-
     lookup_field = "pk"
 
     def get_queryset(self):
@@ -872,6 +954,7 @@ class MemberDetailView(generics.RetrieveAPIView):
             .filter(is_active=True)
             .select_related("profile")
         )
+
 
 class ConnectionViewSet(viewsets.ModelViewSet):
     serializer_class = ConnectionSerializer
@@ -1113,12 +1196,14 @@ class ConnectionViewSet(viewsets.ModelViewSet):
             status=status.HTTP_204_NO_CONTENT
         )
 
+
 class ConversationViewSet(viewsets.ModelViewSet):
     serializer_class = ConversationSerializer
     permission_classes = [
         permissions.IsAuthenticated,
         IsVerifiedMember,
     ]
+
     http_method_names = [
         "get",
         "post",
@@ -1356,8 +1441,6 @@ class ConversationViewSet(viewsets.ModelViewSet):
         )
 
         return Response(
-            {
-                "unread_count": unread_total,
-            },
+            {"unread_count": unread_total},
             status=status.HTTP_200_OK,
         )

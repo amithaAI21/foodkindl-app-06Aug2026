@@ -25,25 +25,25 @@ const steps = [
     icon: <Users />,
     number: "01",
     title: "Discover People Nearby",
-    text: "Create your profile, set dietary preferences, and discover food enthusiasts in your locality.",
+    text: "Create your profile, add your dietary preferences and food interests, and discover like-minded people in your local community.",
   },
   {
     icon: <Send />,
     number: "02",
-    title: "Send a Food Invite",
-    text: "Choose the date, menu, cuisine, and venue, then invite a member of the community.",
+    title: "Cook, Meet, and Eat Together",
+    text: "Message individuals or groups, choose a date, cuisine, menu, and venue, and send them a Food Invite. You can cook together at home, meet in a shared space, or plan a meal at a local eatery.For your first gathering, we recommend meeting as a group in a comfortable public or shared space.",
   },
   {
     icon: <Utensils />,
     number: "03",
     title: "Cook, Meet, or Dine",
-    text: "Meet at a public venue or host a verified gathering and enjoy a fresh meal together.",
+    text: "Meet at the planned venue, prepare a meal together, or explore a local restaurant. Share good food, conversations, laughter, and memorable moments.",
   },
   {
     icon: <Heart />,
     number: "04",
-    title: "Build Local Community",
-    text: "Share recipes and moments, rate experiences, and schedule your next culinary gathering.",
+    title: "Share the Experience",
+    text: "Post photos and videos, share stories from your gathering, tag the people you met, and inspire others in the community. Food enthusiasts can also share their favourite recipes, cooking tips, and food discoveries for others to try.",
   },
 ];
 
@@ -125,8 +125,8 @@ export default function LandingPage() {
           </h1>
 
           <p>
-            Cook together, share meals, reduce food waste, and discover
-            sustainable food products—all in one human-centred platform.
+            Discover people through food. Cook together, eat together, and create lasting connections.
+            Share recipes, photos, and videos—all in one human-centred food community.
           </p>
 
           <div className="hero-actions">
@@ -190,7 +190,7 @@ export default function LandingPage() {
           // eyebrow="Simple flow"
           title="How FoodKindl"
           accent="Works"
-          description="In four simple steps, bring good food, shared laughter, and new friendships to your table."
+          description="In four simple steps, turn a shared love of food into meaningful connections, memorable meals, and new friendships."
         />
 
         <div className="feature-grid four">
@@ -263,10 +263,10 @@ export default function LandingPage() {
     <h3>Social Dining, Simplified.</h3>
 
     <p>
-      We believe the recipe to end isolation is simple: gathering
-      around a kitchen counter, preparing a meal together, and sharing
-      warm bread. FoodKindl coordinates the details so people can focus
-      on building meaningful relationships.
+      
+We believe meaningful connections often begin around food- cooking together, sharing a meal, and enjoying warm conversations that can grow into lasting friendships.
+
+FoodKindl makes it easy for individuals and groups to discover like-minded people, plan food gatherings, and build genuine relationships. Members can also share recipes, articles, photos, and cooking videos to inspire the wider food community.
     </p>
   </div>
 
@@ -337,9 +337,9 @@ export default function LandingPage() {
           <article className="feature-card">
             <UserCheck className="green" />
             <h3>Verified Profiles</h3>
-            <p>Photo ID and mobile verification can be required before joining private gatherings.</p>
+            <p>Photo ID can be required before joining private gatherings.</p>
           </article>
-          <article className="feature-card">
+          {/* <article className="feature-card">
             <ShieldCheck />
             <h3>Women-Only Filters</h3>
             <p>Hosts can restrict selected gatherings to verified female community members.</p>
@@ -348,13 +348,13 @@ export default function LandingPage() {
             <MessageCircle />
             <h3>One-Click SOS Shield</h3>
             <p>Emergency controls can share the active meetup location with trusted contacts.</p>
-          </article>
+          </article> */}
         </div>
       </section>
 
-      <section className="content-section products" id="products">
+      {/* <section className="content-section products" id="products">
         <SectionHeading
-          // eyebrow="Product vertical expansion"
+          eyebrow="Product vertical expansion"
           title="Future"
           accent="Vision"
           description="Cooking together is the starting point. FoodKindl can grow into a sustainable food and serveware ecosystem."
@@ -384,12 +384,12 @@ export default function LandingPage() {
 
       <small>Status: Planned Launch</small>
     </div>
-  </article>
+  </article> */}
 
-  <article className="product-card">
+  {/* <article className="product-card">
     <div className="product-image">
       <img
-        src="/images/cermanic.png"
+        src="/images/frontend\public\images\ceramic.png"
         alt="Sustainable Serveware"
       />
 
@@ -411,7 +411,7 @@ export default function LandingPage() {
   </article>
 
 </div>
-      </section>
+      </section> */}
 
       {/* <section className="form-section" id="waitlist">
         <div className="form-card">
@@ -507,7 +507,7 @@ export default function LandingPage() {
       <footer>
   <div className="footer-brand">
     <img
-      src="public/images/icon.png"
+      src="images/icon.png"
       alt="FoodKindl"
       className="footer-logo-image"
     />

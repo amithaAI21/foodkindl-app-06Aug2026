@@ -12,6 +12,11 @@ from .views import (
     stats,
 )
 
+from .ai_views import (
+    AIRecipeGenerateView,
+)
+
+
 router = DefaultRouter()
 
 router.register(
@@ -44,22 +49,32 @@ router.register(
     basename="conversations",
 )
 
+
 urlpatterns = [
     path(
         "members/",
         MemberListView.as_view(),
         name="member-list",
     ),
+
     path(
         "members/<int:pk>/",
         MemberDetailView.as_view(),
         name="member-detail",
     ),
+
     path(
         "stats/",
         stats,
         name="stats",
     ),
+
+    path(
+        "ai/recipe/",
+        AIRecipeGenerateView.as_view(),
+        name="ai-recipe",
+    ),
 ]
+
 
 urlpatterns += router.urls

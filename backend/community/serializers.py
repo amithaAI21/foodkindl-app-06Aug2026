@@ -1,6 +1,7 @@
 from django.contrib.auth.models import User
 from django.db.models import Q
 from rest_framework import serializers
+from rest_framework.permissions import BasePermission
 
 from accounts.serializers import (
     ProfileSerializer,
@@ -18,23 +19,18 @@ from .models import (
     SharedPost,
 )
 
-from rest_framework.permissions import (
-    BasePermission,
-)
 
 class PostCommentSerializer(serializers.ModelSerializer):
     author = UserSerializer(read_only=True)
 
     class Meta:
         model = PostComment
-
         fields = (
             "id",
             "author",
             "text",
             "created_at",
         )
-
         read_only_fields = (
             "id",
             "author",
@@ -77,7 +73,6 @@ class PostSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Post
-
         fields = (
             "id",
             "author",
@@ -355,13 +350,46 @@ class PostSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class SharedPostSerializer(serializers.ModelSerializer):
+    shared_by = UserSerializer(read_only=True)
+
+    original_post = PostSerializer(
+        read_only=True
+    )
+
+    class Meta:
+        model = SharedPost
+        fields = (
+            "id",
+            "original_post",
+            "shared_by",
+            "message",
+            "created_at",
+        )
+        read_only_fields = (
+            "id",
+            "original_post",
+            "shared_by",
+            "created_at",
+        )
+
+    def validate_message(self, value):
+        clean_message = value.strip()
+
+        if len(clean_message) > 2000:
+            raise serializers.ValidationError(
+                "Repost message cannot exceed 2,000 characters."
+            )
+
+        return clean_message
+
+
 class FoodListingSerializer(serializers.ModelSerializer):
     owner = UserSerializer(read_only=True)
     claimed_by = UserSerializer(read_only=True)
 
     class Meta:
         model = FoodListing
-
         fields = (
             "id",
             "owner",
@@ -476,38 +504,6 @@ class InvitationSerializer(serializers.ModelSerializer):
             receiver=receiver,
             **validated_data,
         )
-
-
-class SharedPostSerializer(serializers.ModelSerializer):
-    shared_by = UserSerializer(read_only=True)
-
-    class Meta:
-        model = SharedPost
-
-        fields = (
-            "id",
-            "original_post",
-            "shared_by",
-            "message",
-            "created_at",
-        )
-
-        read_only_fields = (
-            "id",
-            "original_post",
-            "shared_by",
-            "created_at",
-        )
-
-    def validate_message(self, value):
-        clean_message = value.strip()
-
-        if len(clean_message) > 2000:
-            raise serializers.ValidationError(
-                "Share message cannot exceed 2,000 characters."
-            )
-
-        return clean_message
 
 
 class MemberSerializer(serializers.ModelSerializer):
@@ -758,6 +754,7 @@ class ConnectionSerializer(serializers.ModelSerializer):
             receiver=receiver,
             status="pending",
         )
+
 
 class DirectMessageSerializer(serializers.ModelSerializer):
     sender = UserSerializer(

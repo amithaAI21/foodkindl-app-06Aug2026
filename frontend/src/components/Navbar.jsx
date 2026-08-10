@@ -1,46 +1,116 @@
-import { ChefHat, Menu, X } from "lucide-react";
+import {
+  Menu,
+  Sparkles,
+  X,
+} from "lucide-react";
+
 import { useState } from "react";
 import { Link } from "react-router-dom";
+
 import { useAuth } from "../context/AuthContext";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
+
   const [open, setOpen] = useState(false);
 
   function close() {
     setOpen(false);
   }
 
-  return (
-    <header className="site-header">
-      <Link to="/" className="navbar-logo">
-    <img
-        src="public/images/icon.png"
-        alt="FoodKindl"
-    />
-</Link>
+  function handleLogout() {
+    logout();
+    close();
+  }
 
-      <button className="mobile-menu-button" onClick={() => setOpen(!open)}>
-        {open ? <X /> : <Menu />}
+  return (
+    <header className="navbar">
+
+      {/* FoodKindl Logo */}
+      <Link
+        to="/"
+        className="brand brand-logo"
+        onClick={close}
+        aria-label="FoodKindl Home"
+      >
+        <img
+          src="/images/icon.png"
+          alt="FoodKindl"
+          className="navbar-logo"
+        />
+      </Link>
+
+      {/* Mobile menu */}
+      <button
+        type="button"
+        className="mobile-menu-button"
+        onClick={() =>
+          setOpen((current) => !current)
+        }
+        aria-label="Toggle navigation"
+        aria-expanded={open}
+      >
+        {open ? (
+          <X size={24} />
+        ) : (
+          <Menu size={24} />
+        )}
       </button>
 
-      <nav className={open ? "nav open" : "nav"}>
-        <a href="/#connect" onClick={close}>Connect</a>
-        {/* <a href="/#food-service" onClick={close}>Food Service</a> */}
-        {/* <a href="/#products" onClick={close}>Products</a> */}
-        {/* <a href="/#waitlist" onClick={close}>Join Waitlist</a> */}
+      {/* Navigation */}
+      <nav
+        className={
+          open
+            ? "nav open"
+            : "nav"
+        }
+      >
+        {!user && (
+          <a
+            href="/#connect"
+            onClick={close}
+          >
+            Connect
+          </a>
+        )}
 
         {user ? (
           <>
-            <Link to="/dashboard" onClick={close}>Dashboard</Link>
-            <button className="nav-button" onClick={() => { logout(); close(); }}>Logout</button>
+            <Link
+              to="/ai-kitchen"
+              onClick={close}
+              className="ai-kitchen-nav-link"
+            >
+              <Sparkles size={17} />
+              AI Kitchen
+            </Link>
+
+            <Link
+              to="/dashboard"
+              onClick={close}
+            >
+              Dashboard
+            </Link>
+
+            <button
+              type="button"
+              className="nav-button"
+              onClick={handleLogout}
+            >
+              Logout
+            </button>
           </>
         ) : (
-          <Link className="launch-button" to="/login" onClick={close}>
+          <Link
+            className="launch-button"
+            to="/login"
+            onClick={close}
+          >
             Launch App
           </Link>
         )}
       </nav>
+
     </header>
   );
 }

@@ -7,29 +7,80 @@ from django.db import models
 
 class Profile(models.Model):
     DIET_CHOICES = [
-        ("none", "No preference"),
-        ("vegetarian", "Vegetarian"),
-        ("vegan", "Vegan"),
-        ("halal", "Halal"),
-        ("keto", "Keto"),
-        ("pescatarian", "Pescatarian"),
-        ("gluten_free", "Gluten-free"),
+        (
+            "non_vegetarian",
+            "Non-Vegetarian",
+        ),
+        (
+            "vegetarian",
+            "Vegetarian",
+        ),
+        (
+            "vegan",
+            "Vegan",
+        ),
+        (
+            "halal",
+            "Halal",
+        ),
+        (
+            "keto",
+            "Keto",
+        ),
+        (
+            "pescatarian",
+            "Pescatarian",
+        ),
+        (
+            "gluten_free",
+            "Gluten-free",
+        ),
     ]
 
     VERIFICATION_STATUS_CHOICES = [
-        ("not_submitted", "Not submitted"),
-        ("pending", "Pending"),
-        ("approved", "Approved"),
-        ("rejected", "Rejected"),
+        (
+            "not_submitted",
+            "Not submitted",
+        ),
+        (
+            "pending",
+            "Pending",
+        ),
+        (
+            "approved",
+            "Approved",
+        ),
+        (
+            "rejected",
+            "Rejected",
+        ),
     ]
 
     GOVERNMENT_ID_TYPE_CHOICES = [
-        ("aadhaar", "Aadhaar Card"),
-        ("passport", "Passport"),
-        ("driving_licence", "Driving Licence"),
-        ("voter_id", "Voter ID"),
-        ("pan", "PAN Card"),
-        ("other", "Other"),
+        (
+            "aadhaar",
+            "Aadhaar Card",
+        ),
+        (
+            "passport",
+            "Passport",
+        ),
+        (
+            "driving_licence",
+            "Driving Licence",
+        ),
+        (
+            "voter_id",
+            "Voter ID",
+        ),
+        (
+            "pan",
+            "PAN Card",
+        ),
+        (
+            "other",
+            "Other",
+        ),
     ]
 
     user = models.OneToOneField(
@@ -38,7 +89,9 @@ class Profile(models.Model):
         related_name="profile",
     )
 
-    bio = models.TextField(blank=True)
+    bio = models.TextField(
+        blank=True,
+    )
 
     city = models.CharField(
         max_length=120,
@@ -73,7 +126,7 @@ class Profile(models.Model):
     dietary_preference = models.CharField(
         max_length=30,
         choices=DIET_CHOICES,
-        default="none",
+        default="non_vegetarian",
     )
 
     profile_image_1 = models.ImageField(
@@ -123,7 +176,9 @@ class Profile(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name="verified_foodkindl_profiles",
+        related_name=(
+            "verified_foodkindl_profiles"
+        ),
     )
 
     verified_at = models.DateTimeField(

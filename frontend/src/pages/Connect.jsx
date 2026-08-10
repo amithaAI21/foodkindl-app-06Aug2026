@@ -15,6 +15,7 @@ import { Link } from "react-router-dom";
 import api from "../api";
 import { useAuth } from "../context/AuthContext";
 
+
 export default function Connect() {
   const { user } = useAuth();
 
@@ -24,24 +25,25 @@ export default function Connect() {
   const [members, setMembers] =
     useState([]);
 
-  const [incomingRequests, setIncomingRequests] =
-    useState([]);
+  const [
+    incomingRequests,
+    setIncomingRequests,
+  ] = useState([]);
 
-  const [sentRequests, setSentRequests] =
-    useState([]);
+  const [
+    sentRequests,
+    setSentRequests,
+  ] = useState([]);
 
-  const [connections, setConnections] =
-    useState([]);
+  const [
+    connections,
+    setConnections,
+  ] = useState([]);
 
-  const [filters, setFilters] = useState({
-  first_name: "",
-  last_name: "",
-  college_workplace: "",
-  role: "",
-  dietary_preference: "",
-  location: "",
-  postcode: "",
-});
+  const [
+    searchValue,
+    setSearchValue,
+  ] = useState("");
 
   const [loading, setLoading] =
     useState(true);
@@ -56,12 +58,10 @@ export default function Connect() {
     import.meta.env.VITE_BACKEND_URL ||
     "http://127.0.0.1:8000";
 
-  function updateFilter(field, value) {
-  setFilters((currentFilters) => ({
-    ...currentFilters,
-    [field]: value,
-  }));
-}
+
+  // -----------------------------------------
+  // Media helpers
+  // -----------------------------------------
 
   function getMediaUrl(path) {
     if (!path) {
@@ -78,10 +78,14 @@ export default function Connect() {
     return `${API_BASE}${path}`;
   }
 
+
   function getMemberName(member) {
     return (
       member?.full_name ||
-      [member?.first_name, member?.last_name]
+      [
+        member?.first_name,
+        member?.last_name,
+      ]
         .filter(Boolean)
         .join(" ") ||
       member?.email ||
@@ -89,21 +93,26 @@ export default function Connect() {
     );
   }
 
+
   function getMemberInitial(member) {
     return getMemberName(member)
       .charAt(0)
       .toUpperCase();
   }
 
+
   function getMemberPhoto(member) {
     return getMediaUrl(
-      member?.profile?.profile_image_1
+      member?.profile
+        ?.profile_image_1
     );
   }
 
+
   function getOtherMember(connection) {
     if (
-      connection.sender?.id === user?.id
+      connection.sender?.id ===
+      user?.id
     ) {
       return connection.receiver;
     }
@@ -111,12 +120,21 @@ export default function Connect() {
     return connection.sender;
   }
 
+
+  // -----------------------------------------
+  // Error helper
+  // -----------------------------------------
+
   function getErrorMessage(data) {
     if (!data) {
-      return "The request could not be completed.";
+      return (
+        "The request could not be completed."
+      );
     }
 
-    if (typeof data === "string") {
+    if (
+      typeof data === "string"
+    ) {
       return data;
     }
 
@@ -128,67 +146,65 @@ export default function Connect() {
     );
   }
 
-  async function loadMembers(customFilters = filters) {
-  setError("");
 
-  try {
-    const response = await api.get(
-      "/members/",
-      {
-        params: {
-          first_name:
-            customFilters.first_name.trim(),
+  // -----------------------------------------
+  // Load members
+  // -----------------------------------------
 
-          last_name:
-            customFilters.last_name.trim(),
+  async function loadMembers(
+    query = ""
+  ) {
+    setError("");
 
-          college_workplace:
-            customFilters.college_workplace.trim(),
+    try {
+      const response =
+        await api.get(
+          "/members/",
+          {
+            params: {
+              q: query.trim(),
+            },
+          }
+        );
 
-          role:
-            customFilters.role.trim(),
+      const memberList =
+        response.data?.results ||
+        response.data;
 
-          dietary_preference:
-            customFilters.dietary_preference,
+      setMembers(
+        Array.isArray(memberList)
+          ? memberList
+          : []
+      );
+    } catch (requestError) {
+      console.error(
+        "Unable to load members:",
+        requestError.response?.status,
+        requestError.response?.data ||
+          requestError
+      );
 
-          location:
-            customFilters.location.trim(),
+      const data =
+        requestError.response?.data;
 
-          postcode:
-            customFilters.postcode.trim(),
-        },
-      }
-    );
+      setError(
+        data?.detail ||
+          data?.message ||
+          (
+            typeof data ===
+            "string"
+              ? data
+              : ""
+          ) ||
+          "Registered members could not be loaded."
+      );
+    }
+  }
 
-    const memberList =
-      response.data?.results ||
-      response.data;
 
-    setMembers(
-      Array.isArray(memberList)
-        ? memberList
-        : []
-    );
-  } catch (requestError) {
-  console.error(
-    "Unable to load members:",
-    requestError.response?.status,
-    requestError.response?.data ||
-      requestError
-  );
-
-  const data = requestError.response?.data;
-
-  setError(
-    data?.detail ||
-      data?.message ||
-      (typeof data === "string"
-        ? data
-        : JSON.stringify(data)) ||
-      "Registered members could not be loaded."
-  );
-}
-}
+  // -----------------------------------------
+  // Load connection data
+  // -----------------------------------------
 
   async function loadConnections() {
     try {
@@ -200,39 +216,52 @@ export default function Connect() {
         api.get(
           "/connections/incoming/"
         ),
+
         api.get(
           "/connections/sent/"
         ),
+
         api.get(
           "/connections/accepted/"
         ),
       ]);
 
       setIncomingRequests(
-        incomingResponse.data?.results ||
+        incomingResponse.data
+          ?.results ||
           incomingResponse.data ||
           []
       );
 
       setSentRequests(
-        sentResponse.data?.results ||
+        sentResponse.data
+          ?.results ||
           sentResponse.data ||
           []
       );
 
       setConnections(
-        acceptedResponse.data?.results ||
+        acceptedResponse.data
+          ?.results ||
           acceptedResponse.data ||
           []
       );
     } catch (requestError) {
-      console.error(requestError);
+      console.error(
+        "Unable to load connections:",
+        requestError
+      );
 
       setError(
         "Connection details could not be loaded."
       );
     }
   }
+
+
+  // -----------------------------------------
+  // Initial load
+  // -----------------------------------------
 
   async function loadPage() {
     setLoading(true);
@@ -246,44 +275,53 @@ export default function Connect() {
     setLoading(false);
   }
 
+
   useEffect(() => {
     loadPage();
   }, []);
 
-  async function searchMembers(event) {
-  event.preventDefault();
 
-  setLoading(true);
-  setError("");
-  setMessage("");
+  // -----------------------------------------
+  // Search members
+  // -----------------------------------------
 
-  await loadMembers();
+  async function searchMembers(
+    event
+  ) {
+    event.preventDefault();
 
-  setLoading(false);
-}
+    setLoading(true);
+    setError("");
+    setMessage("");
 
-async function clearFilters() {
-  const clearedFilters = {
-    first_name: "",
-    last_name: "",
-    college_workplace: "",
-    role: "",
-    dietary_preference: "",
-    location: "",
-    postcode: "",
-  };
+    await loadMembers(
+      searchValue
+    );
 
-  setFilters(clearedFilters);
-  setLoading(true);
-  setError("");
-  setMessage("");
+    setLoading(false);
+  }
 
-  await loadMembers(clearedFilters);
 
-  setLoading(false);
-}
+  async function showAllMembers() {
+    setSearchValue("");
 
-  async function sendRequest(memberId) {
+    setLoading(true);
+    setError("");
+    setMessage("");
+
+    await loadMembers("");
+
+    setLoading(false);
+  }
+
+
+  // -----------------------------------------
+  // Connection actions
+  // -----------------------------------------
+
+  async function sendRequest(
+    memberId
+  ) {
     setError("");
     setMessage("");
 
@@ -299,7 +337,12 @@ async function clearFilters() {
         "Connection request sent."
       );
 
-      await loadPage();
+      await Promise.all([
+        loadMembers(
+          searchValue
+        ),
+        loadConnections(),
+      ]);
     } catch (requestError) {
       setError(
         getErrorMessage(
@@ -309,7 +352,13 @@ async function clearFilters() {
     }
   }
 
-  async function acceptRequest(connectionId) {
+
+  async function acceptRequest(
+    connectionId
+  ) {
+    setError("");
+    setMessage("");
+
     try {
       await api.post(
         `/connections/${connectionId}/accept/`
@@ -329,7 +378,13 @@ async function clearFilters() {
     }
   }
 
-  async function declineRequest(connectionId) {
+
+  async function declineRequest(
+    connectionId
+  ) {
+    setError("");
+    setMessage("");
+
     try {
       await api.post(
         `/connections/${connectionId}/decline/`
@@ -349,7 +404,13 @@ async function clearFilters() {
     }
   }
 
-  async function cancelRequest(connectionId) {
+
+  async function cancelRequest(
+    connectionId
+  ) {
+    setError("");
+    setMessage("");
+
     try {
       await api.post(
         `/connections/${connectionId}/cancel/`
@@ -369,14 +430,21 @@ async function clearFilters() {
     }
   }
 
-  async function removeConnection(connectionId) {
-    const confirmed = window.confirm(
-      "Remove this member from your connections?"
-    );
+
+  async function removeConnection(
+    connectionId
+  ) {
+    const confirmed =
+      window.confirm(
+        "Remove this member from your connections?"
+      );
 
     if (!confirmed) {
       return;
     }
+
+    setError("");
+    setMessage("");
 
     try {
       await api.post(
@@ -397,14 +465,26 @@ async function clearFilters() {
     }
   }
 
-  function renderMemberAvatar(member) {
-    const photo = getMemberPhoto(member);
+
+  // -----------------------------------------
+  // Member UI
+  // -----------------------------------------
+
+  function renderMemberAvatar(
+    member
+  ) {
+    const photo =
+      getMemberPhoto(member);
 
     if (photo) {
       return (
         <img
           src={photo}
-          alt={getMemberName(member)}
+          alt={
+            getMemberName(
+              member
+            )
+          }
           className="connect-member-photo"
         />
       );
@@ -412,17 +492,35 @@ async function clearFilters() {
 
     return (
       <div className="connect-member-placeholder">
-        {getMemberInitial(member)}
+        {getMemberInitial(
+          member
+        )}
       </div>
     );
   }
 
-  function renderMemberDetails(member) {
-    const profile = member?.profile || {};
+
+  function renderMemberDetails(
+    member
+  ) {
+    const profile =
+      member?.profile || {};
+
+    const dietaryLabel =
+      profile.dietary_preference
+        ? profile
+            .dietary_preference
+            .replaceAll(
+              "_",
+              " "
+            )
+        : "";
 
     return (
       <>
-        <h3>{getMemberName(member)}</h3>
+        <h3>
+          {getMemberName(member)}
+        </h3>
 
         {profile.role && (
           <p className="connect-member-role">
@@ -430,8 +528,10 @@ async function clearFilters() {
           </p>
         )}
 
-        {(profile.city ||
-          profile.locality) && (
+        {(
+          profile.city ||
+          profile.locality
+        ) && (
           <p className="connect-member-location">
             <MapPin size={15} />
 
@@ -446,22 +546,22 @@ async function clearFilters() {
 
         {profile.college_workplace && (
           <p>
-            {profile.college_workplace}
+            {
+              profile
+                .college_workplace
+            }
           </p>
         )}
 
-        {profile.dietary_preference &&
-          profile.dietary_preference !==
-            "none" && (
-            <span className="connect-preference">
-              {
-                profile.dietary_preference
-              }
-            </span>
-          )}
+        {dietaryLabel && (
+          <span className="connect-preference">
+            {dietaryLabel}
+          </span>
+        )}
       </>
     );
   }
+
 
   if (loading) {
     return (
@@ -473,6 +573,7 @@ async function clearFilters() {
     );
   }
 
+
   return (
     <main className="app-page">
       <div className="app-heading">
@@ -481,15 +582,23 @@ async function clearFilters() {
             FoodKindl Connect
           </div>
 
-          <h1>Discover and connect</h1>
+          <h1>
+            Discover and connect
+          </h1>
 
           <p>
-            Find FoodKindl members, manage
-            connection requests, and build your
-            food community.
+            Find FoodKindl members,
+            manage connection requests,
+            and build your food
+            community.
           </p>
         </div>
       </div>
+
+
+      {/* =================================
+          TOP TABS
+      ================================= */}
 
       <div className="connect-tabs">
         <button
@@ -500,12 +609,16 @@ async function clearFilters() {
               : "connect-tab"
           }
           onClick={() =>
-            setActiveTab("discover")
+            setActiveTab(
+              "discover"
+            )
           }
         >
           <Search size={18} />
+
           Discover Members
         </button>
+
 
         <button
           type="button"
@@ -515,33 +628,47 @@ async function clearFilters() {
               : "connect-tab"
           }
           onClick={() =>
-            setActiveTab("requests")
+            setActiveTab(
+              "requests"
+            )
           }
         >
           <UserPlus size={18} />
+
           Requests
-          {incomingRequests.length > 0 && (
+
+          {incomingRequests.length >
+            0 && (
             <span className="connect-count">
-              {incomingRequests.length}
+              {
+                incomingRequests
+                  .length
+              }
             </span>
           )}
         </button>
 
+
         <button
           type="button"
           className={
-            activeTab === "connections"
+            activeTab ===
+            "connections"
               ? "connect-tab active"
               : "connect-tab"
           }
           onClick={() =>
-            setActiveTab("connections")
+            setActiveTab(
+              "connections"
+            )
           }
         >
           <UsersRound size={18} />
+
           My Connections
         </button>
       </div>
+
 
       {error && (
         <p className="error-message">
@@ -549,277 +676,238 @@ async function clearFilters() {
         </p>
       )}
 
+
       {message && (
         <p className="form-message">
           {message}
         </p>
       )}
 
+
+      {/* =================================
+          DISCOVER MEMBERS
+      ================================= */}
+
       {activeTab === "discover" && (
         <section>
           <form
-  className="app-panel connect-filter-form"
-  onSubmit={searchMembers}
->
-  <div className="connect-filter-grid">
-    <label>
-      First name
-      <input
-        type="text"
-        value={filters.first_name}
-        onChange={(event) =>
-          updateFilter(
-            "first_name",
-            event.target.value
-          )
-        }
-        placeholder="First name"
-      />
-    </label>
+            className="app-panel connect-search-form"
+            onSubmit={
+              searchMembers
+            }
+          >
+            <div className="connect-global-search">
+              <Search
+                size={21}
+                className="connect-global-search-icon"
+              />
 
-    <label>
-      Last name
-      <input
-        type="text"
-        value={filters.last_name}
-        onChange={(event) =>
-          updateFilter(
-            "last_name",
-            event.target.value
-          )
-        }
-        placeholder="Last name"
-      />
-    </label>
+              <input
+                type="search"
+                value={
+                  searchValue
+                }
+                onChange={(
+                  event
+                ) =>
+                  setSearchValue(
+                    event.target
+                      .value
+                  )
+                }
+                placeholder="Search by name, postcode, city, locality, workplace, role or food preference..."
+                autoComplete="off"
+              />
 
-    <label>
-      College or workplace
-      <input
-        type="text"
-        value={filters.college_workplace}
-        onChange={(event) =>
-          updateFilter(
-            "college_workplace",
-            event.target.value
-          )
-        }
-        placeholder="Scaler, university, company..."
-      />
-    </label>
+              <button
+                type="submit"
+                className="primary-button connect-search-button"
+              >
+                <Search
+                  size={18}
+                />
 
-    <label>
-      Role
-      <input
-        type="text"
-        value={filters.role}
-        onChange={(event) =>
-          updateFilter(
-            "role",
-            event.target.value
-          )
-        }
-        placeholder="Student, engineer, chef..."
-      />
-    </label>
+                Search
+              </button>
+            </div>
 
-    <label>
-      Food preference
-      <select
-        value={filters.dietary_preference}
-        onChange={(event) =>
-          updateFilter(
-            "dietary_preference",
-            event.target.value
-          )
-        }
-      >
-        <option value="">
-          All preferences
-        </option>
 
-        <option value="none">
-          No preference
-        </option>
+            <div className="connect-search-help">
+              Try:
+              {" "}
+              <span>Alex</span>
+              {" · "}
+              <span>560001</span>
+              {" · "}
+              <span>Bengaluru</span>
+              {" · "}
+              <span>Scaler</span>
+              {" · "}
+              <span>Engineer</span>
+              {" · "}
+              <span>Vegetarian</span>
+            </div>
 
-        <option value="vegetarian">
-          Vegetarian
-        </option>
 
-        <option value="vegan">
-          Vegan
-        </option>
+            <button
+              type="button"
+              className="connect-show-all"
+              onClick={
+                showAllMembers
+              }
+            >
+              Show All Members
+            </button>
+          </form>
 
-        <option value="halal">
-          Halal
-        </option>
 
-        <option value="keto">
-          Keto
-        </option>
-
-        <option value="pescatarian">
-          Pescatarian
-        </option>
-
-        <option value="gluten_free">
-          Gluten-free
-        </option>
-      </select>
-    </label>
-
-    <label>
-      Location
-      <input
-        type="text"
-        value={filters.location}
-        onChange={(event) =>
-          updateFilter(
-            "location",
-            event.target.value
-          )
-        }
-        placeholder="City or locality"
-      />
-    </label>
-
-    <label>
-      Postcode
-      <input
-        type="text"
-        value={filters.postcode}
-        onChange={(event) =>
-          updateFilter(
-            "postcode",
-            event.target.value
-          )
-        }
-        placeholder="560001"
-      />
-    </label>
-  </div>
-
-  <div className="connect-filter-actions">
-    <button
-      type="submit"
-      className="primary-button"
-    >
-      <Search size={18} />
-      Search Members
-    </button>
-
-    <button
-      type="button"
-      className="secondary-button"
-      onClick={clearFilters}
-    >
-      Show All Members
-    </button>
-  </div>
-</form>
+          {/* RESULTS */}
 
           <div className="connect-member-grid">
-            {members.length === 0 ? (
+            {members.length ===
+            0 ? (
               <div className="app-panel">
-                No members matched your search.
+                No members matched
+                your search.
               </div>
             ) : (
-              members.map((member) => (
-                <article
-                  className="connect-member-card"
-                  key={member.id}
-                >
-                  {renderMemberAvatar(member)}
-
-                  <div className="connect-member-info">
-                    {renderMemberDetails(
+              members.map(
+                (member) => (
+                  <article
+                    className="connect-member-card"
+                    key={
+                      member.id
+                    }
+                  >
+                    {renderMemberAvatar(
                       member
                     )}
 
-                    <div className="connect-card-actions">
-                      <Link
-                        to={`/connect/member/${member.id}`}
-                        className="secondary-button"
-                      >
-                        View Profile
-                      </Link>
-
-                      {member.connection_status ===
-                        "none" && (
-                        <button
-                          type="button"
-                          className="primary-button"
-                          onClick={() =>
-                            sendRequest(
-                              member.id
-                            )
-                          }
-                        >
-                          <UserPlus size={17} />
-                          Connect
-                        </button>
+                    <div className="connect-member-info">
+                      {renderMemberDetails(
+                        member
                       )}
 
-                      {member.connection_status ===
-                        "request_sent" && (
-                        <button
-                          type="button"
+                      <div className="connect-card-actions">
+                        <Link
+                          to={`/connect/member/${member.id}`}
                           className="secondary-button"
-                          onClick={() =>
-                            cancelRequest(
-                              member.connection_id
-                            )
-                          }
                         >
-                          <Clock3 size={17} />
-                          Request Sent
-                        </button>
-                      )}
+                          View Profile
+                        </Link>
 
-                      {member.connection_status ===
-                        "request_received" && (
-                        <button
-                          type="button"
-                          className="primary-button"
-                          onClick={() =>
-                            setActiveTab(
-                              "requests"
-                            )
-                          }
-                        >
-                          Review Request
-                        </button>
-                      )}
 
-                      {member.connection_status ===
-                        "connected" && (
-                        <span className="connected-badge">
-                          <UserCheck size={17} />
-                          Connected
-                        </span>
-                      )}
+                        {member.connection_status ===
+                          "none" && (
+                          <button
+                            type="button"
+                            className="primary-button"
+                            onClick={() =>
+                              sendRequest(
+                                member.id
+                              )
+                            }
+                          >
+                            <UserPlus
+                              size={
+                                17
+                              }
+                            />
+
+                            Connect
+                          </button>
+                        )}
+
+
+                        {member.connection_status ===
+                          "request_sent" && (
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={() =>
+                              cancelRequest(
+                                member.connection_id
+                              )
+                            }
+                          >
+                            <Clock3
+                              size={
+                                17
+                              }
+                            />
+
+                            Request Sent
+                          </button>
+                        )}
+
+
+                        {member.connection_status ===
+                          "request_received" && (
+                          <button
+                            type="button"
+                            className="primary-button"
+                            onClick={() =>
+                              setActiveTab(
+                                "requests"
+                              )
+                            }
+                          >
+                            Review Request
+                          </button>
+                        )}
+
+
+                        {member.connection_status ===
+                          "connected" && (
+                          <span className="connected-badge">
+                            <UserCheck
+                              size={
+                                17
+                              }
+                            />
+
+                            Connected
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </article>
-              ))
+                  </article>
+                )
+              )
             )}
           </div>
         </section>
       )}
 
+
+      {/* =================================
+          REQUESTS
+      ================================= */}
+
       {activeTab === "requests" && (
         <section className="connect-request-layout">
+
           <div>
             <div className="connect-section-heading">
-              <h2>Incoming Requests</h2>
+              <h2>
+                Incoming Requests
+              </h2>
+
               <span>
-                {incomingRequests.length}
+                {
+                  incomingRequests
+                    .length
+                }
               </span>
             </div>
 
+
             <div className="connect-list">
-              {incomingRequests.length === 0 ? (
+              {incomingRequests.length ===
+              0 ? (
                 <div className="app-panel">
-                  No incoming requests.
+                  No incoming
+                  requests.
                 </div>
               ) : (
                 incomingRequests.map(
@@ -830,7 +918,9 @@ async function clearFilters() {
                     return (
                       <article
                         className="connect-request-card"
-                        key={connection.id}
+                        key={
+                          connection.id
+                        }
                       >
                         {renderMemberAvatar(
                           member
@@ -858,7 +948,11 @@ async function clearFilters() {
                                 )
                               }
                             >
-                              <Check size={17} />
+                              <Check
+                                size={
+                                  17
+                                }
+                              />
                               Accept
                             </button>
 
@@ -871,7 +965,11 @@ async function clearFilters() {
                                 )
                               }
                             >
-                              <X size={17} />
+                              <X
+                                size={
+                                  17
+                                }
+                              />
                               Decline
                             </button>
                           </div>
@@ -884,18 +982,28 @@ async function clearFilters() {
             </div>
           </div>
 
+
           <div>
             <div className="connect-section-heading">
-              <h2>Sent Requests</h2>
+              <h2>
+                Sent Requests
+              </h2>
+
               <span>
-                {sentRequests.length}
+                {
+                  sentRequests
+                    .length
+                }
               </span>
             </div>
 
+
             <div className="connect-list">
-              {sentRequests.length === 0 ? (
+              {sentRequests.length ===
+              0 ? (
                 <div className="app-panel">
-                  No pending sent requests.
+                  No pending sent
+                  requests.
                 </div>
               ) : (
                 sentRequests.map(
@@ -906,7 +1014,9 @@ async function clearFilters() {
                     return (
                       <article
                         className="connect-request-card"
-                        key={connection.id}
+                        key={
+                          connection.id
+                        }
                       >
                         {renderMemberAvatar(
                           member
@@ -934,7 +1044,11 @@ async function clearFilters() {
                                 )
                               }
                             >
-                              <X size={17} />
+                              <X
+                                size={
+                                  17
+                                }
+                              />
                               Cancel Request
                             </button>
                           </div>
@@ -949,19 +1063,31 @@ async function clearFilters() {
         </section>
       )}
 
-      {activeTab === "connections" && (
+
+      {/* =================================
+          MY CONNECTIONS
+      ================================= */}
+
+      {activeTab ===
+        "connections" && (
         <section>
           <div className="connect-section-heading">
-            <h2>My Connections</h2>
+            <h2>
+              My Connections
+            </h2>
+
             <span>
               {connections.length}
             </span>
           </div>
 
+
           <div className="connect-member-grid">
-            {connections.length === 0 ? (
+            {connections.length ===
+            0 ? (
               <div className="app-panel">
-                You do not have any connections yet.
+                You do not have any
+                connections yet.
               </div>
             ) : (
               connections.map(
@@ -974,7 +1100,9 @@ async function clearFilters() {
                   return (
                     <article
                       className="connect-member-card"
-                      key={connection.id}
+                      key={
+                        connection.id
+                      }
                     >
                       {renderMemberAvatar(
                         member
@@ -1002,7 +1130,11 @@ async function clearFilters() {
                               )
                             }
                           >
-                            <UserMinus size={17} />
+                            <UserMinus
+                              size={
+                                17
+                              }
+                            />
                             Remove
                           </button>
                         </div>

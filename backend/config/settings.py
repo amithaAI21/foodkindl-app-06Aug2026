@@ -36,7 +36,7 @@ SECRET_KEY = os.environ.get(
 
 DEBUG = os.environ.get(
     "DEBUG",
-    "False",
+    "True",
 ).strip().lower() == "true"
 
 
@@ -78,9 +78,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+
     "whitenoise.middleware.WhiteNoiseMiddleware",
 
-    # Keep CORS middleware above CommonMiddleware.
     "corsheaders.middleware.CorsMiddleware",
 
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -174,8 +174,8 @@ STORAGES = {
     },
     "staticfiles": {
         "BACKEND": (
-            "whitenoise.storage."
-            "CompressedManifestStaticFilesStorage"
+            "django.contrib.staticfiles.storage."
+            "StaticFilesStorage"
         ),
     },
 }

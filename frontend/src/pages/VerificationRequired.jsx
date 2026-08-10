@@ -5,17 +5,29 @@ import {
   ShieldCheck,
   Upload,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import api from "../api";
 import { useAuth } from "../context/AuthContext";
 
 export default function VerificationRequired() {
-  const { user, refreshUser } = useAuth();
+  const {
+    user,
+    reloadUser,
+  } = useAuth();
 
-  const [idType, setIdType] = useState("");
-  const [governmentId, setGovernmentId] =
-    useState(null);
+  const [idType, setIdType] =
+    useState("");
+
+  const [
+    governmentId,
+    setGovernmentId,
+  ] = useState(null);
 
   const [uploading, setUploading] =
     useState(false);
@@ -26,37 +38,119 @@ export default function VerificationRequired() {
   const [message, setMessage] =
     useState("");
 
-  const profile = user?.profile || {};
+  const fileInputRef = useRef(null);
+
+  const profile =
+    user?.profile || {};
 
   useEffect(() => {
     setIdType(
       profile.government_id_type || ""
     );
-  }, [profile.government_id_type]);
+  }, [
+    profile.government_id_type,
+  ]);
 
-  async function uploadGovernmentId(event) {
+  function getErrorMessage(data) {
+    if (!data) {
+      return (
+        "Government ID could not be uploaded. " +
+        "Please try again."
+      );
+    }
+
+    if (typeof data === "string") {
+      return data;
+    }
+
+    if (
+      Array.isArray(
+        data?.government_id
+      )
+    ) {
+      return data.government_id[0];
+    }
+
+    if (
+      Array.isArray(
+        data?.government_id_type
+      )
+    ) {
+      return data.government_id_type[0];
+    }
+
+    if (
+      Array.isArray(
+        data?.non_field_errors
+      )
+    ) {
+      return data.non_field_errors[0];
+    }
+
+    return (
+      data?.detail ||
+      data?.message ||
+      "Government ID could not be uploaded."
+    );
+  }
+
+  async function uploadGovernmentId(
+    event
+  ) {
     event.preventDefault();
+
+    setError("");
+    setMessage("");
 
     if (!idType) {
       setError(
-        "Select the Government ID type."
+        "Please select the Government ID type."
       );
       return;
     }
 
     if (!governmentId) {
       setError(
-        "Select a Government ID document."
+        "Please select a Government ID document."
+      );
+      return;
+    }
+
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "application/pdf",
+    ];
+
+    if (
+      !allowedTypes.includes(
+        governmentId.type
+      )
+    ) {
+      setError(
+        "Please upload a JPG, PNG, WebP or PDF document."
+      );
+      return;
+    }
+
+    const maxSize =
+      5 * 1024 * 1024;
+
+    if (
+      governmentId.size > maxSize
+    ) {
+      setError(
+        "Government ID must be smaller than 5 MB."
       );
       return;
     }
 
     setUploading(true);
-    setError("");
-    setMessage("");
 
     try {
-      const formData = new FormData();
+      const formData =
+        new FormData();
 
       formData.append(
         "government_id_type",
@@ -68,82 +162,126 @@ export default function VerificationRequired() {
         governmentId
       );
 
-      await api.patch(
-        "/profile/",
-        formData,
-        {
-          headers: {
-            "Content-Type":
-              "multipart/form-data",
-          },
-        }
+      /*
+       * IMPORTANT:
+       * Do NOT manually set
+       * Content-Type: multipart/form-data.
+       *
+       * Axios/browser will add the
+       * multipart boundary correctly.
+       */
+      const response =
+        await api.patch(
+          "/profile/",
+          formData
+        );
+
+      console.log(
+        "Government ID upload response:",
+        response.data
       );
 
       setGovernmentId(null);
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value =
+          "";
+      }
 
       setMessage(
         "Government ID uploaded successfully. It is now awaiting admin approval."
       );
 
-      if (refreshUser) {
-        await refreshUser();
+      if (reloadUser) {
+        await reloadUser();
       }
     } catch (requestError) {
       console.error(
-        "Government ID upload error:",
-        requestError.response?.data ||
-          requestError
+        "Government ID upload failed"
       );
 
-      const data =
-        requestError.response?.data;
+      console.error(
+        "Status:",
+        requestError.response?.status
+      );
+
+      console.error(
+        "Response:",
+        requestError.response?.data
+      );
+
+      console.error(
+        "Full error:",
+        requestError
+      );
 
       setError(
-        data?.government_id?.[0] ||
-          data?.government_id_type?.[0] ||
-          data?.detail ||
-          "Government ID could not be uploaded."
+        getErrorMessage(
+          requestError.response?.data
+        )
       );
     } finally {
       setUploading(false);
     }
   }
 
-  if (
+  const isVerified =
+    profile.is_verified === true &&
     profile.verification_status ===
-      "approved" &&
-    profile.is_verified
-  ) {
-    return (
-      <main className="app-page">
-        <div className="verification-card">
-          <CheckCircle2 size={54} />
+      "approved";
 
-          <h1>Identity verified</h1>
+  if (isVerified) {
+    return (
+      <main className="app-page verification-page">
+        <section className="app-panel verification-card">
+          <div className="verification-icon verified">
+            <CheckCircle2 size={34} />
+          </div>
+
+          <div className="eyebrow">
+            FoodKindl Safety
+          </div>
+
+          <h1>
+            Identity verified
+          </h1>
 
           <p>
-            Your Government ID has been
-            approved. Community and Connect are
-            now available.
+            Your Government ID has
+            been approved.
           </p>
-        </div>
+
+          <p>
+            You can now use Connect
+            and private messaging with
+            other verified FoodKindl
+            members.
+          </p>
+
+          <div className="verification-status approved">
+            <ShieldCheck size={20} />
+
+            <div>
+              <strong>
+                Verified member
+              </strong>
+
+              <span>
+                Your identity
+                verification is active.
+              </span>
+            </div>
+          </div>
+        </section>
       </main>
     );
   }
 
   return (
-    <main className="app-page">
-      <section className="verification-card">
+    <main className="app-page verification-page">
+      <section className="app-panel verification-card">
         <div className="verification-icon">
-          {profile.verification_status ===
-          "pending" ? (
-            <Clock3 size={48} />
-          ) : profile.verification_status ===
-            "rejected" ? (
-            <FileWarning size={48} />
-          ) : (
-            <ShieldCheck size={48} />
-          )}
+          <ShieldCheck size={34} />
         </div>
 
         <div className="eyebrow">
@@ -151,13 +289,19 @@ export default function VerificationRequired() {
         </div>
 
         <h1>
-          Identity verification required
+          Identity verification
         </h1>
 
         <p>
-          Upload a valid Government ID. Connect
-          and Community will unlock after an
-          administrator approves your document.
+          Government ID verification
+          is required for Connect and
+          private messaging.
+        </p>
+
+        <p>
+          CommuniQ remains available
+          without identity
+          verification.
         </p>
 
         {profile.verification_status ===
@@ -167,12 +311,13 @@ export default function VerificationRequired() {
 
             <div>
               <strong>
-                Verification pending
+                Verification pending       
               </strong>
-
+              <br></br>
               <span>
-                Your document is awaiting
-                administrator approval.
+                Your document is
+                awaiting administrator
+                approval.
               </span>
             </div>
           </div>
@@ -190,7 +335,7 @@ export default function VerificationRequired() {
 
               <span>
                 {profile.rejection_reason ||
-                  "Please upload a clearer document."}
+                  "Please upload a clearer or valid document."}
               </span>
             </div>
           </div>
@@ -210,84 +355,11 @@ export default function VerificationRequired() {
 
         <form
           className="verification-form"
-          onSubmit={uploadGovernmentId}
+          onSubmit={
+            uploadGovernmentId
+          }
+          encType="multipart/form-data"
         >
-          <label>
-            Government ID type
-
-            <select
-              value={idType}
-              onChange={(event) =>
-                setIdType(
-                  event.target.value
-                )
-              }
-              required
-            >
-              <option value="">
-                Select ID type
-              </option>
-
-              <option value="aadhaar">
-                Aadhaar Card
-              </option>
-
-              <option value="passport">
-                Passport
-              </option>
-
-              <option value="driving_licence">
-                Driving Licence
-              </option>
-
-              <option value="voter_id">
-                Voter ID
-              </option>
-
-              <option value="pan">
-                PAN Card
-              </option>
-
-              <option value="other">
-                Other
-              </option>
-            </select>
-          </label>
-
-          <label>
-            Upload document
-
-            <input
-              type="file"
-              accept="
-                image/jpeg,
-                image/png,
-                image/webp,
-                application/pdf
-              "
-              onChange={(event) =>
-                setGovernmentId(
-                  event.target.files?.[0] ||
-                    null
-                )
-              }
-              required
-            />
-          </label>
-
-          <button
-            type="submit"
-            className="primary-button"
-            disabled={uploading}
-          >
-            <Upload size={18} />
-
-            {uploading
-              ? "Uploading..."
-              : profile.government_id_uploaded
-                ? "Upload New Document"
-                : "Upload Government ID"}
-          </button>
         </form>
       </section>
     </main>
