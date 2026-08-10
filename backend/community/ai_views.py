@@ -1,9 +1,8 @@
 import json
 import os
-import re
 import traceback
 
-import torch
+import requests
 
 from rest_framework import (
     permissions,
@@ -13,536 +12,469 @@ from rest_framework import (
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-)
-
 
 # ============================================================
 # CONFIGURATION
 # ============================================================
 
-# Smaller model = considerably faster on CPU.
-MODEL_NAME = os.environ.get(
-    "FOODKINDL_TEXT_MODEL",
-    "Qwen/Qwen2.5-0.5B-Instruct",
+HF_TOKEN = os.environ.get(
+    "HF_TOKEN",
+    "",
+).strip()
+
+HF_MODEL = os.environ.get(
+    "FOODKINDL_AI_MODEL",
+    "openai/gpt-oss-20b:fastest",
+).strip()
+
+HF_API_URL = (
+    "https://router.huggingface.co/v1/chat/completions"
 )
-
-# Keep recipe output compact so generation finishes faster.
-MAX_NEW_TOKENS = int(
-    os.environ.get(
-        "FOODKINDL_MAX_NEW_TOKENS",
-        "320",
-    )
-)
-
-
-# ============================================================
-# CPU PERFORMANCE
-# ============================================================
-
-if not torch.cuda.is_available():
-    cpu_count = os.cpu_count() or 4
-
-    torch.set_num_threads(
-        max(
-            1,
-            min(
-                cpu_count,
-                8,
-            ),
-        )
-    )
-
-    try:
-        torch.set_num_interop_threads(
-            1
-        )
-    except RuntimeError:
-        pass
-
-
-# ============================================================
-# MODEL CACHE
-# ============================================================
-
-_tokenizer = None
-_model = None
-
-
-# ============================================================
-# LOAD MODEL
-# ============================================================
-
-def get_model():
-    global _tokenizer
-    global _model
-
-    if (
-        _tokenizer is not None
-        and _model is not None
-    ):
-        return (
-            _tokenizer,
-            _model,
-        )
-
-    print(
-        "================================="
-    )
-
-    print(
-        "Loading FoodKindl AI model:"
-    )
-
-    print(
-        MODEL_NAME
-    )
-
-    print(
-        "================================="
-    )
-
-
-    _tokenizer = (
-        AutoTokenizer
-        .from_pretrained(
-            MODEL_NAME,
-        )
-    )
-
-
-    # --------------------------------------------------------
-    # GPU
-    # --------------------------------------------------------
-
-    if torch.cuda.is_available():
-
-        print(
-            "GPU detected."
-        )
-
-        print(
-            "Loading model on CUDA..."
-        )
-
-        _model = (
-            AutoModelForCausalLM
-            .from_pretrained(
-                MODEL_NAME,
-
-                torch_dtype=(
-                    torch.float16
-                ),
-
-                low_cpu_mem_usage=False,
-            )
-        )
-
-        _model = _model.to(
-            "cuda"
-        )
-
-
-    # --------------------------------------------------------
-    # CPU
-    # --------------------------------------------------------
-
-    else:
-
-        print(
-            "GPU not detected."
-        )
-
-        print(
-            "Loading model on CPU..."
-        )
-
-        _model = (
-            AutoModelForCausalLM
-            .from_pretrained(
-                MODEL_NAME,
-
-                torch_dtype=(
-                    torch.float32
-                ),
-
-                low_cpu_mem_usage=False,
-            )
-        )
-
-        _model = _model.to(
-            "cpu"
-        )
-
-
-    _model.eval()
-
-
-    model_device = next(
-        _model.parameters()
-    ).device
-
-
-    print(
-        "FoodKindl AI model loaded."
-    )
-
-    print(
-        "Model device:",
-        model_device,
-    )
-
-
-    return (
-        _tokenizer,
-        _model,
-    )
-
-
-# ============================================================
-# GENERATE MODEL RESPONSE
-# ============================================================
-
-def generate_text(
-    system_prompt,
-    user_prompt,
-):
-    tokenizer, model = (
-        get_model()
-    )
-
-
-    device = next(
-        model.parameters()
-    ).device
-
-
-    messages = [
-        {
-            "role": "system",
-
-            "content":
-                system_prompt,
-        },
-
-        {
-            "role": "user",
-
-            "content":
-                user_prompt,
-        },
-    ]
-
-
-    # --------------------------------------------------------
-    # Build Qwen chat prompt
-    # --------------------------------------------------------
-
-    prompt_text = (
-        tokenizer
-        .apply_chat_template(
-            messages,
-
-            tokenize=False,
-
-            add_generation_prompt=True,
-        )
-    )
-
-
-    # --------------------------------------------------------
-    # Tokenize
-    # --------------------------------------------------------
-
-    model_inputs = tokenizer(
-        prompt_text,
-
-        return_tensors="pt",
-
-        truncation=True,
-
-        max_length=1024,
-    )
-
-
-    # Make sure model and input are on the same device.
-    model_inputs = {
-        key:
-            value.to(device)
-
-        for key, value
-        in model_inputs.items()
-    }
-
-
-    input_length = (
-        model_inputs[
-            "input_ids"
-        ].shape[-1]
-    )
-
-
-    # --------------------------------------------------------
-    # Generate
-    # --------------------------------------------------------
-
-    with torch.inference_mode():
-
-        output = model.generate(
-            **model_inputs,
-
-            max_new_tokens=(
-                MAX_NEW_TOKENS
-            ),
-
-            do_sample=False,
-
-            num_beams=1,
-
-            use_cache=True,
-
-            repetition_penalty=1.04,
-
-            pad_token_id=(
-                tokenizer
-                .eos_token_id
-            ),
-
-            eos_token_id=(
-                tokenizer
-                .eos_token_id
-            ),
-        )
-
-
-    # Only decode newly generated text.
-    generated_tokens = (
-        output[0][
-            input_length:
-        ]
-    )
-
-
-    result = tokenizer.decode(
-        generated_tokens,
-
-        skip_special_tokens=True,
-    )
-
-
-    return result.strip()
-
-
-# ============================================================
-# CLEAN JSON
-# ============================================================
-
-def clean_json_response(
-    text
-):
-    text = str(
-        text or ""
-    ).strip()
-
-
-    if text.startswith(
-        "```json"
-    ):
-        text = text[7:]
-
-
-    elif text.startswith(
-        "```"
-    ):
-        text = text[3:]
-
-
-    if text.endswith(
-        "```"
-    ):
-        text = text[:-3]
-
-
-    text = text.strip()
-
-
-    # Extract JSON if the model included
-    # accidental explanatory text.
-    match = re.search(
-        r"\{.*\}",
-        text,
-        flags=re.DOTALL,
-    )
-
-
-    if match:
-        return (
-            match.group(0)
-            .strip()
-        )
-
-
-    return text
 
 
 # ============================================================
 # NORMALIZE LIST
 # ============================================================
 
-def normalize_list(
-    value
-):
-    if not isinstance(
-        value,
-        list,
-    ):
+def normalize_list(value):
+    if not isinstance(value, list):
         return []
 
-
-    cleaned = []
-
-
-    for item in value:
-
-        item = str(
-            item
-        ).strip()
+    return [
+        str(item).strip()
+        for item in value
+        if str(item).strip()
+    ]
 
 
-        if item:
-            cleaned.append(
-                item
+# ============================================================
+# PROVIDER ERROR
+# ============================================================
+
+def get_provider_error(response):
+    try:
+        data = response.json()
+
+        error_value = (
+            data.get("error")
+            or data.get("message")
+            or data.get("detail")
+            or response.text
+        )
+
+        if isinstance(
+            error_value,
+            dict,
+        ):
+            return (
+                error_value.get("message")
+                or str(error_value)
             )
 
+        return str(error_value)
 
-    return cleaned
+    except Exception:
+        return (
+            response.text
+            or "Unknown Hugging Face error."
+        )
 
 
 # ============================================================
-# GENERATE RECIPE
+# HUGGING FACE REQUEST
 # ============================================================
 
-def generate_recipe(
-    dish_name
+def generate_ai_recipe_json(
+    dish_name,
 ):
-    clean_dish = str(
-        dish_name
-    ).strip()
-
-
-    # --------------------------------------------------------
-    # SYSTEM PROMPT
-    # --------------------------------------------------------
+    if not HF_TOKEN:
+        raise RuntimeError(
+            "HF_TOKEN is not configured."
+        )
 
     system_prompt = """
 You are FoodKindl AI.
 
-You are an expert home-cooking recipe assistant.
+You are an expert home-cooking assistant.
 
-Create practical, accurate and concise recipes.
+Create accurate, practical and concise recipes.
 
 Always create the exact dish requested by the user.
 
 Never replace the requested dish with another dish.
 
-Return ONLY valid JSON.
+Follow the provided JSON schema exactly.
 
-Do not use Markdown.
+Do not return Markdown.
 
-Do not add commentary outside the JSON.
+Do not return commentary outside the JSON object.
 """
-
-
-    # --------------------------------------------------------
-    # USER PROMPT
-    # --------------------------------------------------------
 
     user_prompt = f"""
-Create a concise recipe for exactly:
+Create a recipe for exactly this dish:
 
-"{clean_dish}"
+"{dish_name}"
 
-The recipe MUST be for "{clean_dish}".
+Important requirements:
 
-Return only JSON in this exact format:
-
-{{
-  "description": "short 1 or 2 sentence description",
-  "prep_time": "example: 10 minutes",
-  "cook_time": "example: 15 minutes",
-  "servings": "example: 2",
-  "ingredients": [
-    "ingredient with quantity"
-  ],
-  "steps": [
-    "clear cooking instruction"
-  ],
-  "tips": "one short cooking tip",
-  "food_safety": "one short relevant food safety tip"
-}}
-
-Rules:
-
+- The recipe must remain "{dish_name}".
 - Use realistic ingredients.
-- Include quantities.
-- Use 6 to 10 ingredients when appropriate.
-- Use 4 to 7 cooking steps.
-- Keep each step short.
-- Do not generate another dish.
-- Do not repeat information.
-- Do not include a video.
+- Include realistic quantities.
+- Include 6 to 10 ingredients when appropriate.
+- Include 4 to 7 clear cooking steps.
+- Keep each step concise.
+- Include one useful cooking tip.
+- Include one relevant food-safety tip.
+- Do not include video content.
 """
 
+    headers = {
+        "Authorization":
+            f"Bearer {HF_TOKEN}",
+
+        "Content-Type":
+            "application/json",
+    }
+
+    payload = {
+        "model":
+            HF_MODEL,
+
+        "messages": [
+            {
+                "role":
+                    "system",
+
+                "content":
+                    system_prompt,
+            },
+            {
+                "role":
+                    "user",
+
+                "content":
+                    user_prompt,
+            },
+        ],
+
+        "temperature":
+            0.2,
+
+        "max_tokens":
+            600,
+
+        "stream":
+            False,
+
+        "response_format": {
+            "type":
+                "json_schema",
+
+            "json_schema": {
+                "name":
+                    "foodkindl_recipe",
+
+                "strict":
+                    True,
+
+                "schema": {
+                    "type":
+                        "object",
+
+                    "properties": {
+                        "description": {
+                            "type":
+                                "string",
+                        },
+
+                        "prep_time": {
+                            "type":
+                                "string",
+                        },
+
+                        "cook_time": {
+                            "type":
+                                "string",
+                        },
+
+                        "servings": {
+                            "type":
+                                "string",
+                        },
+
+                        "ingredients": {
+                            "type":
+                                "array",
+
+                            "items": {
+                                "type":
+                                    "string",
+                            },
+                        },
+
+                        "steps": {
+                            "type":
+                                "array",
+
+                            "items": {
+                                "type":
+                                    "string",
+                            },
+                        },
+
+                        "tips": {
+                            "type":
+                                "string",
+                        },
+
+                        "food_safety": {
+                            "type":
+                                "string",
+                        },
+                    },
+
+                    "required": [
+                        "description",
+                        "prep_time",
+                        "cook_time",
+                        "servings",
+                        "ingredients",
+                        "steps",
+                        "tips",
+                        "food_safety",
+                    ],
+
+                    "additionalProperties":
+                        False,
+                },
+            },
+        },
+    }
+
 
     # --------------------------------------------------------
-    # MODEL GENERATION
-    # --------------------------------------------------------
-
-    raw_response = generate_text(
-        system_prompt,
-        user_prompt,
-    )
-
-
-    print(
-        "RAW AI RESPONSE:"
-    )
-
-    print(
-        raw_response
-    )
-
-
-    cleaned_response = (
-        clean_json_response(
-            raw_response
-        )
-    )
-
-
-    # --------------------------------------------------------
-    # PARSE JSON
+    # SEND REQUEST
     # --------------------------------------------------------
 
     try:
-
-        data = json.loads(
-            cleaned_response
+        response = requests.post(
+            HF_API_URL,
+            headers=headers,
+            json=payload,
+            timeout=120,
         )
 
+    except requests.Timeout as error:
+        raise RuntimeError(
+            (
+                "FoodKindl AI request "
+                "timed out."
+            )
+        ) from error
+
+    except requests.ConnectionError as error:
+        raise RuntimeError(
+            (
+                "FoodKindl could not "
+                "connect to Hugging Face."
+            )
+        ) from error
+
+    except requests.RequestException as error:
+        raise RuntimeError(
+            (
+                "FoodKindl AI request "
+                f"failed: {str(error)}"
+            )
+        ) from error
+
+
+    # --------------------------------------------------------
+    # PROVIDER ERROR
+    # --------------------------------------------------------
+
+    if response.status_code >= 400:
+        provider_error = (
+            get_provider_error(
+                response
+            )
+        )
+
+        print(
+            "\n======================================"
+        )
+
+        print(
+            "HUGGING FACE ERROR"
+        )
+
+        print(
+            "STATUS:",
+            response.status_code,
+        )
+
+        print(
+            "MODEL:",
+            HF_MODEL,
+        )
+
+        print(
+            "BODY:",
+            response.text,
+        )
+
+        print(
+            "======================================\n"
+        )
+
+
+        if response.status_code == 400:
+            raise RuntimeError(
+                (
+                    "Hugging Face rejected "
+                    "the request: "
+                    f"{provider_error}"
+                )
+            )
+
+
+        if response.status_code == 401:
+            raise RuntimeError(
+                (
+                    "Hugging Face "
+                    "authentication failed. "
+                    "Check HF_TOKEN."
+                )
+            )
+
+
+        if response.status_code == 403:
+            raise RuntimeError(
+                (
+                    "HF_TOKEN does not have "
+                    "permission to use "
+                    "Inference Providers."
+                )
+            )
+
+
+        if response.status_code == 404:
+            raise RuntimeError(
+                (
+                    f"The model '{HF_MODEL}' "
+                    "is not available through "
+                    "the selected provider."
+                )
+            )
+
+
+        if response.status_code == 429:
+            raise RuntimeError(
+                (
+                    "Hugging Face rate limit "
+                    "reached. Try again shortly."
+                )
+            )
+
+
+        raise RuntimeError(
+            (
+                "Hugging Face error: "
+                f"{provider_error}"
+            )
+        )
+
+
+    # --------------------------------------------------------
+    # RESPONSE JSON
+    # --------------------------------------------------------
+
+    try:
+        provider_data = (
+            response.json()
+        )
+
+    except ValueError as error:
+        print(
+            "INVALID HUGGING FACE RESPONSE:"
+        )
+
+        print(
+            response.text
+        )
+
+        raise RuntimeError(
+            (
+                "Hugging Face returned "
+                "an invalid response."
+            )
+        ) from error
+
+
+    # --------------------------------------------------------
+    # EXTRACT CONTENT
+    # --------------------------------------------------------
+
+    try:
+        content = (
+            provider_data[
+                "choices"
+            ][0][
+                "message"
+            ][
+                "content"
+            ]
+        )
+
+    except (
+        KeyError,
+        IndexError,
+        TypeError,
+    ) as error:
+
+        print(
+            "UNEXPECTED HF RESPONSE:"
+        )
+
+        print(
+            provider_data
+        )
+
+        raise RuntimeError(
+            (
+                "Hugging Face returned "
+                "an unexpected response."
+            )
+        ) from error
+
+
+    if not content:
+        raise RuntimeError(
+            (
+                "Hugging Face returned "
+                "an empty response."
+            )
+        )
+
+
+    # --------------------------------------------------------
+    # PARSE STRUCTURED JSON
+    # --------------------------------------------------------
+
+    try:
+        recipe_data = json.loads(
+            content
+        )
 
     except json.JSONDecodeError as error:
 
         print(
-            "INVALID JSON RESPONSE:"
+            "INVALID STRUCTURED JSON:"
         )
 
         print(
-            cleaned_response
+            content
         )
-
 
         raise RuntimeError(
             (
@@ -552,71 +484,66 @@ Rules:
         ) from error
 
 
-    # --------------------------------------------------------
-    # INGREDIENTS
-    # --------------------------------------------------------
+    return recipe_data
 
-    ingredients = (
-        normalize_list(
-            data.get(
-                "ingredients",
-                [],
-            )
+
+# ============================================================
+# GENERATE RECIPE
+# ============================================================
+
+def generate_recipe(
+    dish_name,
+):
+    clean_dish = str(
+        dish_name
+    ).strip()
+
+    data = generate_ai_recipe_json(
+        clean_dish
+    )
+
+
+    ingredients = normalize_list(
+        data.get(
+            "ingredients",
+            [],
         )
     )
 
 
-    # --------------------------------------------------------
-    # STEPS
-    # --------------------------------------------------------
-
-    steps = (
-        normalize_list(
-            data.get(
-                "steps",
-                [],
-            )
+    steps = normalize_list(
+        data.get(
+            "steps",
+            [],
         )
     )
 
 
     if not ingredients:
-
         raise RuntimeError(
             (
-                "The AI did not generate "
-                "a valid ingredient list."
+                "AI did not generate "
+                "ingredients."
             )
         )
 
 
     if not steps:
-
         raise RuntimeError(
             (
-                "The AI did not generate "
-                "valid cooking instructions."
+                "AI did not generate "
+                "cooking steps."
             )
         )
 
 
-    # --------------------------------------------------------
-    # IMPORTANT
-    #
-    # Title comes from user search.
-    #
-    # Egg Bhurji can therefore NEVER
-    # become Paneer Butter Masala.
-    # --------------------------------------------------------
-
+    # Always keep exact user-requested dish
     title = (
-        clean_dish
-        .title()
+        clean_dish.title()
     )
 
 
     return {
-
         "title":
             title,
 
@@ -626,9 +553,8 @@ Rules:
                 data.get(
                     "description",
                     (
-                        f"A FoodKindl "
-                        f"recipe for "
-                        f"{title}."
+                        f"A FoodKindl recipe "
+                        f"for {title}."
                     ),
                 )
             ).strip(),
@@ -689,13 +615,12 @@ Rules:
 
 
 # ============================================================
-# AI RECIPE API
+# API VIEW
 # ============================================================
 
 class AIRecipeGenerateView(
     APIView
 ):
-
     permission_classes = [
         permissions.IsAuthenticated,
     ]
@@ -705,11 +630,6 @@ class AIRecipeGenerateView(
         self,
         request,
     ):
-
-        # ----------------------------------------------------
-        # GET QUERY
-        # ----------------------------------------------------
-
         query = str(
             request.data.get(
                 "query",
@@ -719,11 +639,10 @@ class AIRecipeGenerateView(
 
 
         # ----------------------------------------------------
-        # VALIDATION
+        # VALIDATE
         # ----------------------------------------------------
 
         if not query:
-
             return Response(
                 {
                     "detail":
@@ -741,7 +660,6 @@ class AIRecipeGenerateView(
 
 
         if len(query) > 100:
-
             return Response(
                 {
                     "detail":
@@ -764,44 +682,44 @@ class AIRecipeGenerateView(
         # ----------------------------------------------------
 
         try:
-
             print(
-                "================================="
+                "\n======================================"
             )
 
             print(
-                "Generating recipe:",
+                "FOODKINDL AI REQUEST"
+            )
+
+            print(
+                "Dish:",
                 query,
             )
 
             print(
-                "================================="
+                "Model:",
+                HF_MODEL,
+            )
+
+            print(
+                "HF token configured:",
+                bool(HF_TOKEN),
+            )
+
+            print(
+                "======================================"
             )
 
 
-            recipe = (
-                generate_recipe(
-                    query
-                )
+            recipe = generate_recipe(
+                query
             )
 
 
             print(
                 "Recipe generated successfully:",
-                recipe[
-                    "title"
-                ],
+                recipe["title"],
             )
 
-
-            # ------------------------------------------------
-            # ARTICLE ONLY
-            #
-            # NO VIDEO
-            # NO VIDEO JOB
-            # NO DIFFUSERS
-            # NO CUDA REQUIREMENT
-            # ------------------------------------------------
 
             return Response(
                 {
@@ -820,13 +738,15 @@ class AIRecipeGenerateView(
 
 
         except Exception as error:
-
             traceback.print_exc()
 
 
             print(
-                "RECIPE GENERATION ERROR:",
-                repr(error),
+                "\nRECIPE GENERATION ERROR:"
+            )
+
+            print(
+                repr(error)
             )
 
 
