@@ -2,11 +2,12 @@ from datetime import timedelta
 import os
 from pathlib import Path
 
+import dj_database_url
 from dotenv import load_dotenv
 
 
 # ============================================================
-# BASE DIRECTORY
+# BASE
 # ============================================================
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -15,44 +16,29 @@ load_dotenv(BASE_DIR / ".env")
 
 
 # ============================================================
-# ENVIRONMENT HELPERS
+# ENV HELPERS
 # ============================================================
 
 def get_env_list(name, default=""):
-    value = os.environ.get(
-        name,
-        default,
-    )
-
-    if isinstance(
-        value,
-        (list, tuple),
-    ):
-        items = value
-    else:
-        items = str(value).split(",")
+    value = os.environ.get(name, default)
 
     return [
-        str(item).strip().rstrip("/")
-        for item in items
-        if str(item).strip()
+        item.strip().rstrip("/")
+        for item in value.split(",")
+        if item.strip()
     ]
 
 
 # ============================================================
-# CORE SETTINGS
+# SECURITY
 # ============================================================
 
-SECRET_KEY = os.environ.get(
-    "SECRET_KEY",
-    "development-only-secret-key",
-)
-
+SECRET_KEY = os.environ["SECRET_KEY"]
 
 DEBUG = (
     os.environ.get(
         "DEBUG",
-        "True",
+        "False",
     )
     .strip()
     .lower()
@@ -63,8 +49,6 @@ DEBUG = (
 ALLOWED_HOSTS = get_env_list(
     "DJANGO_ALLOWED_HOSTS",
     (
-        "localhost,"
-        "127.0.0.1,"
         "foodkindl-app-06aug2026.onrender.com,"
         ".onrender.com"
     ),
@@ -101,7 +85,6 @@ MIDDLEWARE = [
 
     "whitenoise.middleware.WhiteNoiseMiddleware",
 
-    # CORS should be before CommonMiddleware.
     "corsheaders.middleware.CorsMiddleware",
 
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -119,11 +102,17 @@ MIDDLEWARE = [
 
 
 # ============================================================
-# URL / TEMPLATES / WSGI
+# URLS / WSGI
 # ============================================================
 
 ROOT_URLCONF = "config.urls"
 
+WSGI_APPLICATION = "config.wsgi.application"
+
+
+# ============================================================
+# TEMPLATES
+# ============================================================
 
 TEMPLATES = [
     {
@@ -158,44 +147,79 @@ TEMPLATES = [
 ]
 
 
-WSGI_APPLICATION = "config.wsgi.application"
-
-
 # ============================================================
 # DATABASE
-# ============================================================
 #
-# LOCAL DEVELOPMENT:
-# SQLite works normally.
+# Production:
+# Render PostgreSQL through DATABASE_URL
 #
-# IMPORTANT FOR RENDER:
-# Render's filesystem is ephemeral.
-# For production, PostgreSQL is strongly recommended.
-#
+# Local:
+# SQLite fallback
 # ============================================================
 
-DATABASES = {
-    "default": {
-        "ENGINE": (
-            "django.db.backends.sqlite3"
-        ),
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL"
+)
 
-        "NAME": (
-            BASE_DIR / "db.sqlite3"
-        ),
+
+if DATABASE_URL:
+    DATABASES = {
+        "default": (
+            dj_database_url.config(
+                default=DATABASE_URL,
+                conn_max_age=600,
+                conn_health_checks=True,
+                ssl_require=not DEBUG,
+            )
+        )
     }
-}
+
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE":
+                "django.db.backends.sqlite3",
+
+            "NAME":
+                BASE_DIR / "db.sqlite3",
+        }
+    }
 
 
 # ============================================================
 # PASSWORD VALIDATION
 # ============================================================
 
-AUTH_PASSWORD_VALIDATORS = []
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        "NAME": (
+            "django.contrib.auth.password_validation."
+            "UserAttributeSimilarityValidator"
+        ),
+    },
+    {
+        "NAME": (
+            "django.contrib.auth.password_validation."
+            "MinimumLengthValidator"
+        ),
+    },
+    {
+        "NAME": (
+            "django.contrib.auth.password_validation."
+            "CommonPasswordValidator"
+        ),
+    },
+    {
+        "NAME": (
+            "django.contrib.auth.password_validation."
+            "NumericPasswordValidator"
+        ),
+    },
+]
 
 
 # ============================================================
-# INTERNATIONALIZATION
+# LANGUAGE / TIME
 # ============================================================
 
 LANGUAGE_CODE = "en-us"
@@ -213,9 +237,7 @@ USE_TZ = True
 
 STATIC_URL = "/static/"
 
-STATIC_ROOT = (
-    BASE_DIR / "staticfiles"
-)
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 
 STORAGES = {
@@ -236,29 +258,15 @@ STORAGES = {
 
 
 # ============================================================
-# LEGACY / LOCAL MEDIA
-# ============================================================
+# LEGACY MEDIA
 #
-# Netlify Blob uploads DO NOT use MEDIA_ROOT.
-#
-# These settings are retained so old Django media files and
-# local-development uploads can still work.
-#
-# New profile/post/food images should be uploaded through:
-#
-# React
-#   -> /.netlify/functions/media-upload
-#   -> Netlify Blob
-#   -> URL/key
-#   -> Django database
-#
+# New media is stored in Netlify Blob.
+# Keep this only for old/local Django uploads.
 # ============================================================
 
 MEDIA_URL = "/media/"
 
-MEDIA_ROOT = (
-    BASE_DIR / "media"
-)
+MEDIA_ROOT = BASE_DIR / "media"
 
 
 # ============================================================
@@ -267,13 +275,7 @@ MEDIA_ROOT = (
 
 CORS_ALLOWED_ORIGINS = get_env_list(
     "CORS_ALLOWED_ORIGINS",
-    (
-        "http://localhost:5173,"
-        "http://127.0.0.1:5173,"
-        "http://localhost:8888,"
-        "http://127.0.0.1:8888,"
-        "https://foodkindlapp.netlify.app"
-    ),
+    "https://foodkindlapp.netlify.app",
 )
 
 
@@ -287,10 +289,6 @@ CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = get_env_list(
     "CSRF_TRUSTED_ORIGINS",
     (
-        "http://localhost:5173,"
-        "http://127.0.0.1:5173,"
-        "http://localhost:8888,"
-        "http://127.0.0.1:8888,"
         "https://foodkindlapp.netlify.app,"
         "https://foodkindl-app-06aug2026.onrender.com"
     ),
@@ -298,7 +296,7 @@ CSRF_TRUSTED_ORIGINS = get_env_list(
 
 
 # ============================================================
-# DJANGO REST FRAMEWORK
+# REST FRAMEWORK
 # ============================================================
 
 REST_FRAMEWORK = {
@@ -335,11 +333,17 @@ SIMPLE_JWT = {
 
     "REFRESH_TOKEN_LIFETIME":
         timedelta(days=14),
+
+    "ROTATE_REFRESH_TOKENS":
+        True,
+
+    "BLACKLIST_AFTER_ROTATION":
+        False,
 }
 
 
 # ============================================================
-# RENDER / HTTPS
+# HTTPS / RENDER SECURITY
 # ============================================================
 
 SECURE_PROXY_SSL_HEADER = (
@@ -348,18 +352,29 @@ SECURE_PROXY_SSL_HEADER = (
 )
 
 
-SESSION_COOKIE_SECURE = (
-    not DEBUG
-)
+SESSION_COOKIE_SECURE = True
 
-CSRF_COOKIE_SECURE = (
-    not DEBUG
-)
+CSRF_COOKIE_SECURE = True
 
 
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
 X_FRAME_OPTIONS = "DENY"
+
+
+# Production only
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+
+    SESSION_COOKIE_SECURE = True
+
+    CSRF_COOKIE_SECURE = True
+
+    SECURE_HSTS_SECONDS = 31536000
+
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+
+    SECURE_HSTS_PRELOAD = True
 
 
 # ============================================================
@@ -419,18 +434,6 @@ LOGGING = {
         },
 
         "django.request": {
-            "handlers": [
-                "console"
-            ],
-
-            "level":
-                "ERROR",
-
-            "propagate":
-                False,
-        },
-
-        "django.db.backends": {
             "handlers": [
                 "console"
             ],
