@@ -3,6 +3,13 @@ import {
   useState,
 } from "react";
 
+import {
+  ArrowLeft,
+  RefreshCw,
+} from "lucide-react";
+
+import { Link } from "react-router-dom";
+
 import api from "../api";
 import { useAuth } from "../context/AuthContext";
 
@@ -19,7 +26,7 @@ const initialFiles = {
 // NETLIFY BLOB UPLOAD
 // ============================================================
 
-async function uploadMediaToNetlify(file, kind = "profile") {
+async function uploadMediaToNetlify(file, uploadType = "public") {
   if (!file) {
     throw new Error(
       "No file selected."
@@ -35,8 +42,8 @@ async function uploadMediaToNetlify(file, kind = "profile") {
   );
 
   formData.append(
-    "kind",
-    kind
+    "upload_type",
+    uploadType
   );
 
   let response;
@@ -134,7 +141,7 @@ async function uploadMediaToNetlify(file, kind = "profile") {
   }
 
   if (
-    kind === "profile" &&
+    uploadType !== "government_id" &&
     !data.url
   ) {
     console.error(
@@ -254,6 +261,9 @@ export default function Profile() {
     useState("");
 
   const [submitting, setSubmitting] =
+    useState(false);
+
+  const [refreshing, setRefreshing] =
     useState(false);
 
 
@@ -577,6 +587,40 @@ export default function Profile() {
 
 
   // ==========================================================
+  // MANUAL REFRESH
+  // ==========================================================
+
+  async function refreshProfile() {
+    setRefreshing(true);
+    setError("");
+    setMessage("");
+
+    try {
+      if (reloadUser) {
+        await reloadUser();
+      }
+
+      setFiles(initialFiles);
+
+      setMessage(
+        "Profile refreshed."
+      );
+    } catch (refreshError) {
+      console.error(
+        "PROFILE REFRESH FAILED:",
+        refreshError
+      );
+
+      setError(
+        "Profile could not be refreshed."
+      );
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+
+  // ==========================================================
   // SUBMIT
   // ==========================================================
 
@@ -724,7 +768,7 @@ export default function Profile() {
         const uploaded =
           await uploadMediaToNetlify(
             selectedFile,
-            "profile"
+            "public"
           );
 
 
@@ -919,6 +963,15 @@ export default function Profile() {
 
         <div>
 
+          <Link
+            to="/dashboard"
+            className="community-back-link"
+          >
+            <ArrowLeft size={18} />
+
+            Back to Dashboard
+          </Link>
+
           <div className="eyebrow left">
             Profile and Preferences
           </div>
@@ -934,6 +987,26 @@ export default function Profile() {
           </p>
 
         </div>
+
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={refreshProfile}
+          disabled={refreshing || submitting}
+        >
+          <RefreshCw
+            size={18}
+            className={
+              refreshing
+                ? "spin"
+                : ""
+            }
+          />
+
+          {refreshing
+            ? "Refreshing..."
+            : "Refresh"}
+        </button>
 
       </div>
 
