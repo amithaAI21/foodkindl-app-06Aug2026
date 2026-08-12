@@ -2,7 +2,6 @@ import {
   getStore,
 } from "@netlify/blobs";
 
-
 const PUBLIC_STORE =
   "foodkindl-media";
 
@@ -18,6 +17,7 @@ function jsonResponse(
     JSON.stringify(body),
     {
       status,
+
       headers: {
         "Content-Type":
           "application/json",
@@ -27,7 +27,9 @@ function jsonResponse(
 }
 
 
-function getExtension(filename) {
+function getExtension(
+  filename
+) {
   if (!filename) {
     return "bin";
   }
@@ -35,12 +37,16 @@ function getExtension(filename) {
   const parts =
     filename.split(".");
 
-  if (parts.length < 2) {
+  if (
+    parts.length < 2
+  ) {
     return "bin";
   }
 
   return (
-    parts.pop()?.toLowerCase() ||
+    parts
+      .pop()
+      ?.toLowerCase() ||
     "bin"
   );
 }
@@ -51,7 +57,7 @@ export default async function handler(
 ) {
   try {
     // ========================================================
-    // METHOD CHECK
+    // METHOD
     // ========================================================
 
     if (
@@ -70,7 +76,7 @@ export default async function handler(
 
 
     // ========================================================
-    // READ FORM
+    // FORM DATA
     // ========================================================
 
     const formData =
@@ -78,7 +84,9 @@ export default async function handler(
 
 
     const file =
-      formData.get("file");
+      formData.get(
+        "file"
+      );
 
 
     const uploadType =
@@ -107,7 +115,12 @@ export default async function handler(
     }
 
 
-    // Useful debugging
+    const extension =
+      getExtension(
+        file.name
+      );
+
+
     console.log(
       "UPLOAD:",
       {
@@ -119,6 +132,8 @@ export default async function handler(
 
         size:
           file.size,
+
+        extension,
 
         uploadType,
       }
@@ -133,41 +148,35 @@ export default async function handler(
       uploadType ===
       "government_id"
     ) {
-      const allowedGovernmentIdTypes =
-        [
-          "image/jpeg",
-          "image/png",
-          "image/webp",
-          "application/pdf",
-        ];
+      const allowedGovernmentIdTypes = [
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "application/pdf",
+      ];
 
 
-      const allowedGovernmentIdExtensions =
-        [
-          "jpg",
-          "jpeg",
-          "png",
-          "webp",
-          "pdf",
-        ];
-
-
-      const extension =
-        getExtension(
-          file.name
-        );
+      const allowedGovernmentIdExtensions = [
+        "jpg",
+        "jpeg",
+        "png",
+        "webp",
+        "pdf",
+      ];
 
 
       const validMimeType =
-        allowedGovernmentIdTypes.includes(
-          file.type
-        );
+        allowedGovernmentIdTypes
+          .includes(
+            file.type
+          );
 
 
       const validExtension =
-        allowedGovernmentIdExtensions.includes(
-          extension
-        );
+        allowedGovernmentIdExtensions
+          .includes(
+            extension
+          );
 
 
       if (
@@ -195,7 +204,7 @@ export default async function handler(
       }
 
 
-      // 5 MB Government ID limit
+      // 5 MB
       const maxGovernmentIdSize =
         5 * 1024 * 1024;
 
@@ -271,10 +280,7 @@ export default async function handler(
       );
 
 
-      // IMPORTANT:
-      // Do not return a public URL
-      // for Government ID.
-
+      // Private: no public URL
       return jsonResponse(
         {
           success: true,
@@ -288,7 +294,13 @@ export default async function handler(
             file.name,
 
           contentType:
-            file.type,
+            file.type ||
+            (
+              extension ===
+              "pdf"
+                ? "application/pdf"
+                : "application/octet-stream"
+            ),
 
           size:
             file.size,
@@ -299,7 +311,7 @@ export default async function handler(
 
 
     // ========================================================
-    // PUBLIC PROFILE / COMMUNITY MEDIA
+    // PUBLIC MEDIA
     // ========================================================
 
     const allowedPublicTypes = [
@@ -311,6 +323,8 @@ export default async function handler(
       "video/mp4",
       "video/webm",
       "video/quicktime",
+
+      "application/pdf",
     ];
 
 
@@ -324,25 +338,23 @@ export default async function handler(
       "mp4",
       "webm",
       "mov",
+
+      "pdf",
     ];
 
 
-    const extension =
-      getExtension(
-        file.name
-      );
-
-
     const validMimeType =
-      allowedPublicTypes.includes(
-        file.type
-      );
+      allowedPublicTypes
+        .includes(
+          file.type
+        );
 
 
     const validExtension =
-      allowedPublicExtensions.includes(
-        extension
-      );
+      allowedPublicExtensions
+        .includes(
+          extension
+        );
 
 
     if (
@@ -359,7 +371,7 @@ export default async function handler(
               +
               "Use JPG, JPEG, PNG, WebP, GIF, "
               +
-              "MP4, WebM or MOV. "
+              "MP4, WebM, MOV or PDF. "
               +
               `Received type: ${
                 file.type ||
@@ -373,8 +385,18 @@ export default async function handler(
 
 
     // ========================================================
-    // DETERMINE IMAGE / VIDEO
+    // FILE TYPE
     // ========================================================
+
+    const isPdf =
+      (
+        file.type ===
+        "application/pdf"
+        ||
+        extension ===
+        "pdf"
+      );
+
 
     const isVideo =
       (
@@ -393,21 +415,44 @@ export default async function handler(
       );
 
 
-    // Images: 10 MB
-    // Videos: 25 MB
-
-    const maxSize =
-      isVideo
-        ? (
-            25 *
-            1024 *
-            1024
+    const isImage =
+      (
+        file.type
+          .startsWith(
+            "image/"
           )
-        : (
-            10 *
-            1024 *
-            1024
-          );
+        ||
+        [
+          "jpg",
+          "jpeg",
+          "png",
+          "webp",
+          "gif",
+        ].includes(
+          extension
+        )
+      );
+
+
+    // ========================================================
+    // SIZE LIMIT
+    // ========================================================
+
+    let maxSize;
+
+
+    if (isVideo) {
+      maxSize =
+        25 * 1024 * 1024;
+
+    } else if (isPdf) {
+      maxSize =
+        10 * 1024 * 1024;
+
+    } else {
+      maxSize =
+        10 * 1024 * 1024;
+    }
 
 
     if (
@@ -425,11 +470,19 @@ export default async function handler(
                   +
                   "smaller than 25 MB."
                 )
-              : (
-                  "Image must be "
-                  +
-                  "smaller than 10 MB."
-                ),
+
+              : isPdf
+                ? (
+                    "PDF must be "
+                    +
+                    "smaller than 10 MB."
+                  )
+
+                : (
+                    "Image must be "
+                    +
+                    "smaller than 10 MB."
+                  ),
         },
         400
       );
@@ -437,14 +490,30 @@ export default async function handler(
 
 
     // ========================================================
-    // BLOB KEY
+    // FOLDER
     // ========================================================
 
-    const folder =
-      isVideo
-        ? "videos"
-        : "images";
+    let folder =
+      "files";
 
+
+    if (isVideo) {
+      folder =
+        "videos";
+
+    } else if (isImage) {
+      folder =
+        "images";
+
+    } else if (isPdf) {
+      folder =
+        "documents";
+    }
+
+
+    // ========================================================
+    // KEY
+    // ========================================================
 
     const key =
       (
@@ -459,7 +528,7 @@ export default async function handler(
 
 
     // ========================================================
-    // SAVE TO NETLIFY BLOB
+    // STORE
     // ========================================================
 
     const store =
@@ -478,7 +547,11 @@ export default async function handler(
 
           contentType:
             file.type ||
-            "application/octet-stream",
+            (
+              isPdf
+                ? "application/pdf"
+                : "application/octet-stream"
+            ),
 
           size:
             String(
@@ -492,7 +565,14 @@ export default async function handler(
           category:
             isVideo
               ? "video"
-              : "image",
+
+              : isImage
+                ? "image"
+
+                : isPdf
+                  ? "pdf"
+
+                  : "file",
         },
       }
     );
@@ -540,10 +620,27 @@ export default async function handler(
           file.name,
 
         contentType:
-          file.type,
+          file.type ||
+          (
+            isPdf
+              ? "application/pdf"
+              : "application/octet-stream"
+          ),
 
         size:
           file.size,
+
+        category:
+          isVideo
+            ? "video"
+
+            : isImage
+              ? "image"
+
+              : isPdf
+                ? "pdf"
+
+                : "file",
       },
       200
     );
