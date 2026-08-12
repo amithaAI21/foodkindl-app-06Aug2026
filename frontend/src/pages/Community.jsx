@@ -26,6 +26,115 @@ const REACTIONS = [
   { value: "angry", label: "Angry", emoji: "😡" },
 ];
 
+
+
+async function uploadMediaToNetlify(
+  file
+) {
+  if (!file) {
+    return null;
+  }
+
+  const formData =
+    new FormData();
+
+  formData.append(
+    "file",
+    file
+  );
+
+  formData.append(
+    "upload_type",
+    "public"
+  );
+
+  let response;
+
+  try {
+    response = await fetch(
+      "/.netlify/functions/media-upload",
+      {
+        method: "POST",
+        body: formData,
+      }
+    );
+  } catch (networkError) {
+    console.error(
+      "NETLIFY UPLOAD NETWORK ERROR:",
+      networkError
+    );
+
+    throw new Error(
+      "Could not connect to the media upload service."
+    );
+  }
+
+
+  const responseText =
+    await response.text();
+
+  let data = null;
+
+
+  if (responseText) {
+    try {
+      data =
+        JSON.parse(
+          responseText
+        );
+    } catch (parseError) {
+      console.error(
+        "NETLIFY NON-JSON RESPONSE:",
+        responseText
+      );
+
+      throw new Error(
+        `Media upload returned an invalid response. Status: ${response.status}`
+      );
+    }
+  }
+
+
+  if (!response.ok) {
+    console.error(
+      "NETLIFY UPLOAD FAILED:",
+      {
+        status:
+          response.status,
+
+        responseText,
+
+        data,
+      }
+    );
+
+    throw new Error(
+      data?.error ||
+      data?.detail ||
+      `Media upload failed with status ${response.status}.`
+    );
+  }
+
+
+  if (
+    !data ||
+    !data.url ||
+    !data.key
+  ) {
+    console.error(
+      "NETLIFY UPLOAD RESPONSE INVALID:",
+      data
+    );
+
+    throw new Error(
+      "Netlify upload completed without returning a media URL/key."
+    );
+  }
+
+
+  return data;
+}
+
 const emptyForm = {
   post_type: "post",
   title: "",
@@ -83,6 +192,10 @@ export default function Community() {
       return path;
     }
 
+    if (path.startsWith("/.netlify/")) {
+      return `${window.location.origin}${path}`;
+    }
+
     return `${API_BASE}${path}`;
   }
 
@@ -103,11 +216,19 @@ export default function Community() {
       .toUpperCase();
   }
 
-  function getAuthorImage(author) {
-    return getMediaUrl(
-      author?.profile?.profile_image_1
-    );
-  }
+  function getAuthorImage(
+  author
+) {
+  return getMediaUrl(
+    author
+      ?.profile
+      ?.profile_image_1_url
+    ||
+    author
+      ?.profile
+      ?.profile_image_1
+  );
+}
 
   function updatePost(postId, updates) {
     setPosts((currentPosts) =>
@@ -168,6 +289,8 @@ export default function Community() {
       data?.post_type?.[0] ||
       data?.title?.[0] ||
       data?.text?.[0] ||
+      data?.image_url?.[0] ||
+      data?.video_url?.[0] ||
       data?.image?.[0] ||
       data?.video?.[0] ||
       data?.location_name?.[0] ||
@@ -341,101 +464,305 @@ export default function Community() {
     return "";
   }
 
-  async function createPost(event) {
-    event.preventDefault();
+  
+  async function createPost(
+  event
+) {
+  event.preventDefault();
 
-    setError("");
-    setSuccess("");
+  setError("");
+  setSuccess("");
 
-    const validationError =
-      validateBeforeSubmit();
 
-    if (validationError) {
-      setError(validationError);
-      return;
+  const validationError =
+    validateBeforeSubmit();
+
+
+  if (validationError) {
+    setError(
+      validationError
+    );
+
+    return;
+  }
+
+
+  setPublishing(
+    true
+  );
+
+
+  try {
+    let uploadedImage =
+      null;
+
+    let uploadedVideo =
+      null;
+
+
+    // ========================================================
+    // IMAGE -> NETLIFY BLOB
+    // ========================================================
+
+    if (image) {
+      console.log(
+        "Uploading image to Netlify Blob..."
+      );
+
+
+      uploadedImage =
+        await uploadMediaToNetlify(
+          image
+        );
+
+
+      console.log(
+        "IMAGE BLOB UPLOAD SUCCESS:",
+        uploadedImage
+      );
     }
 
-    setPublishing(true);
 
-    try {
-      const formData = new FormData();
+    // ========================================================
+    // VIDEO -> NETLIFY BLOB
+    // ========================================================
 
-      formData.append(
-        "post_type",
-        form.post_type
+    if (video) {
+      console.log(
+        "Uploading video to Netlify Blob..."
       );
 
-      formData.append(
-        "title",
-        form.title.trim()
-      );
 
-      formData.append(
-        "text",
-        form.text.trim()
-      );
-
-      formData.append(
-        "location_name",
-        form.location_name.trim()
-      );
-
-      if (form.latitude) {
-        formData.append(
-          "latitude",
-          form.latitude
+      uploadedVideo =
+        await uploadMediaToNetlify(
+          video
         );
-      }
 
-      if (form.longitude) {
-        formData.append(
-          "longitude",
-          form.longitude
-        );
-      }
 
-      if (image) {
-        formData.append("image", image);
-      }
+      console.log(
+        "VIDEO BLOB UPLOAD SUCCESS:",
+        uploadedVideo
+      );
+    }
 
-      if (video) {
-        formData.append("video", video);
-      }
 
-      await api.post("/posts/", formData);
+    // ========================================================
+    // DATA FOR DJANGO
+    // ========================================================
 
-      const publishedType =
-        form.post_type === "article"
-          ? "Article"
-          : form.post_type === "image"
-            ? "Image"
-            : form.post_type === "video"
-              ? "Video"
-              : "Post";
+    const formData =
+      new FormData();
 
-      resetPublisher();
 
-      setSuccess(
-        `${publishedType} published successfully.`
+    formData.append(
+      "post_type",
+      form.post_type
+    );
+
+
+    formData.append(
+      "title",
+      form.title.trim()
+    );
+
+
+    formData.append(
+      "text",
+      form.text.trim()
+    );
+
+
+    formData.append(
+      "location_name",
+      form.location_name.trim()
+    );
+
+
+    if (
+      form.latitude
+    ) {
+      formData.append(
+        "latitude",
+        form.latitude
+      );
+    }
+
+
+    if (
+      form.longitude
+    ) {
+      formData.append(
+        "longitude",
+        form.longitude
+      );
+    }
+
+
+    // ========================================================
+    // IMAGE BLOB METADATA
+    // ========================================================
+
+    if (uploadedImage) {
+      formData.append(
+        "image_blob_key",
+        uploadedImage.key
       );
 
-      await loadCommunity();
-    } catch (requestError) {
-      console.error(
-        "Unable to publish content:",
-        requestError.response?.data ||
-          requestError
+
+      formData.append(
+        "image_url",
+        uploadedImage.url
       );
 
+
+      formData.append(
+        "image_original_name",
+        uploadedImage.filename ||
+        image.name
+      );
+
+
+      formData.append(
+        "image_content_type",
+        uploadedImage.contentType ||
+        image.type
+      );
+    }
+
+
+    // ========================================================
+    // VIDEO BLOB METADATA
+    // ========================================================
+
+    if (uploadedVideo) {
+      formData.append(
+        "video_blob_key",
+        uploadedVideo.key
+      );
+
+
+      formData.append(
+        "video_url",
+        uploadedVideo.url
+      );
+
+
+      formData.append(
+        "video_original_name",
+        uploadedVideo.filename ||
+        video.name
+      );
+
+
+      formData.append(
+        "video_content_type",
+        uploadedVideo.contentType ||
+        video.type
+      );
+    }
+
+
+    // ========================================================
+    // DEBUG
+    // ========================================================
+
+    console.log(
+      "SENDING POST TO DJANGO:"
+    );
+
+
+    for (
+      const pair of
+      formData.entries()
+    ) {
+      console.log(
+        pair[0],
+        pair[1]
+      );
+    }
+
+
+    // ========================================================
+    // SAVE POST METADATA IN DJANGO
+    // ========================================================
+
+    const response =
+      await api.post(
+        "/posts/",
+        formData
+      );
+
+
+    console.log(
+      "POST SAVE SUCCESS:",
+      response.status,
+      response.data
+    );
+
+
+    // ========================================================
+    // SUCCESS MESSAGE
+    // ========================================================
+
+    const publishedType =
+      form.post_type ===
+      "article"
+        ? "Article"
+
+        : form.post_type ===
+            "image"
+          ? "Image"
+
+          : form.post_type ===
+              "video"
+            ? "Video"
+
+            : "Post";
+
+
+    resetPublisher();
+
+
+    setSuccess(
+      `${publishedType} published successfully.`
+    );
+
+
+    await loadCommunity();
+
+
+  } catch (
+    requestError
+  ) {
+    console.error(
+      "Unable to publish content:",
+      requestError.response?.data ||
+      requestError
+    );
+
+
+    if (
+      requestError instanceof Error &&
+      !requestError.response
+    ) {
+      setError(
+        requestError.message
+      );
+    } else {
       setError(
         getErrorMessage(
           requestError.response?.data
         )
       );
-    } finally {
-      setPublishing(false);
     }
+
+
+  } finally {
+    setPublishing(
+      false
+    );
   }
+}
 
   function addCurrentLocation() {
     setError("");
@@ -937,11 +1264,11 @@ export default function Community() {
           </p>
         )}
 
-        {post.image && (
+        {(post.image_url || post.image) && (
           <div className="post-media">
             <img
               src={getMediaUrl(
-                post.image
+                post.image_url || post.image
               )}
               alt={
                 post.title ||
@@ -953,11 +1280,11 @@ export default function Community() {
           </div>
         )}
 
-        {post.video && (
+        {(post.video_url || post.video) && (
           <div className="post-media">
             <video
               src={getMediaUrl(
-                post.video
+                post.video_url || post.video
               )}
               className="post-video"
               controls

@@ -7,14 +7,15 @@ const backendUrl = (
 
 const api = axios.create({
   baseURL: `${backendUrl}/api`,
-  timeout: 250000,
+  timeout: 30000,
 });
 
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem(
-      "foodkindl_access"
-    );
+    const token =
+      localStorage.getItem(
+        "foodkindl_access"
+      );
 
     if (token) {
       config.headers.Authorization =
@@ -23,7 +24,8 @@ api.interceptors.request.use(
 
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) =>
+    Promise.reject(error)
 );
 
 export default api;

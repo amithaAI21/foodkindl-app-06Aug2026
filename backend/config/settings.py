@@ -1,19 +1,33 @@
 from datetime import timedelta
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
+
+
+# ============================================================
+# BASE DIRECTORY
+# ============================================================
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / ".env")
-# -------------------------------------------------------------------
-# Environment helper
-# -------------------------------------------------------------------
+
+
+# ============================================================
+# ENVIRONMENT HELPERS
+# ============================================================
 
 def get_env_list(name, default=""):
-    value = os.environ.get(name, default)
+    value = os.environ.get(
+        name,
+        default,
+    )
 
-    if isinstance(value, (list, tuple)):
+    if isinstance(
+        value,
+        (list, tuple),
+    ):
         items = value
     else:
         items = str(value).split(",")
@@ -25,19 +39,25 @@ def get_env_list(name, default=""):
     ]
 
 
-# -------------------------------------------------------------------
-# Core settings
-# -------------------------------------------------------------------
+# ============================================================
+# CORE SETTINGS
+# ============================================================
 
 SECRET_KEY = os.environ.get(
     "SECRET_KEY",
     "development-only-secret-key",
 )
 
-DEBUG = os.environ.get(
-    "DEBUG",
-    "True",
-).strip().lower() == "true"
+
+DEBUG = (
+    os.environ.get(
+        "DEBUG",
+        "True",
+    )
+    .strip()
+    .lower()
+    == "true"
+)
 
 
 ALLOWED_HOSTS = get_env_list(
@@ -45,15 +65,15 @@ ALLOWED_HOSTS = get_env_list(
     (
         "localhost,"
         "127.0.0.1,"
-        "foodkindl-api.onrender.com,"
+        "foodkindl-app-06aug2026.onrender.com,"
         ".onrender.com"
     ),
 )
 
 
-# -------------------------------------------------------------------
-# Applications
-# -------------------------------------------------------------------
+# ============================================================
+# APPLICATIONS
+# ============================================================
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -72,31 +92,38 @@ INSTALLED_APPS = [
 ]
 
 
-# -------------------------------------------------------------------
-# Middleware
-# -------------------------------------------------------------------
+# ============================================================
+# MIDDLEWARE
+# ============================================================
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
 
     "whitenoise.middleware.WhiteNoiseMiddleware",
 
+    # CORS should be before CommonMiddleware.
     "corsheaders.middleware.CorsMiddleware",
 
     "django.contrib.sessions.middleware.SessionMiddleware",
+
     "django.middleware.common.CommonMiddleware",
+
     "django.middleware.csrf.CsrfViewMiddleware",
+
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+
     "django.contrib.messages.middleware.MessageMiddleware",
+
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
 
-# -------------------------------------------------------------------
-# URLs, templates and WSGI
-# -------------------------------------------------------------------
+# ============================================================
+# URL / TEMPLATES / WSGI
+# ============================================================
 
 ROOT_URLCONF = "config.urls"
+
 
 TEMPLATES = [
     {
@@ -104,18 +131,23 @@ TEMPLATES = [
             "django.template.backends.django."
             "DjangoTemplates"
         ),
+
         "DIRS": [],
+
         "APP_DIRS": True,
+
         "OPTIONS": {
             "context_processors": [
                 (
-                    "django.template.context_processors."
-                    "request"
+                    "django.template."
+                    "context_processors.request"
                 ),
+
                 (
                     "django.contrib.auth."
                     "context_processors.auth"
                 ),
+
                 (
                     "django.contrib.messages."
                     "context_processors.messages"
@@ -125,45 +157,66 @@ TEMPLATES = [
     },
 ]
 
+
 WSGI_APPLICATION = "config.wsgi.application"
 
 
-# -------------------------------------------------------------------
-# Database
-# -------------------------------------------------------------------
+# ============================================================
+# DATABASE
+# ============================================================
+#
+# LOCAL DEVELOPMENT:
+# SQLite works normally.
+#
+# IMPORTANT FOR RENDER:
+# Render's filesystem is ephemeral.
+# For production, PostgreSQL is strongly recommended.
+#
+# ============================================================
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "ENGINE": (
+            "django.db.backends.sqlite3"
+        ),
+
+        "NAME": (
+            BASE_DIR / "db.sqlite3"
+        ),
     }
 }
 
 
-# -------------------------------------------------------------------
-# Password validation
-# -------------------------------------------------------------------
+# ============================================================
+# PASSWORD VALIDATION
+# ============================================================
 
 AUTH_PASSWORD_VALIDATORS = []
 
 
-# -------------------------------------------------------------------
-# Internationalisation
-# -------------------------------------------------------------------
+# ============================================================
+# INTERNATIONALIZATION
+# ============================================================
 
 LANGUAGE_CODE = "en-us"
+
 TIME_ZONE = "Asia/Kolkata"
 
 USE_I18N = True
+
 USE_TZ = True
 
 
-# -------------------------------------------------------------------
-# Static files
-# -------------------------------------------------------------------
+# ============================================================
+# STATIC FILES
+# ============================================================
 
 STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
+
+STATIC_ROOT = (
+    BASE_DIR / "staticfiles"
+)
+
 
 STORAGES = {
     "default": {
@@ -172,52 +225,81 @@ STORAGES = {
             "FileSystemStorage"
         ),
     },
+
     "staticfiles": {
         "BACKEND": (
-            "django.contrib.staticfiles.storage."
-            "StaticFilesStorage"
+            "whitenoise.storage."
+            "CompressedManifestStaticFilesStorage"
         ),
     },
 }
 
 
-# -------------------------------------------------------------------
-# Uploaded media
-# -------------------------------------------------------------------
+# ============================================================
+# LEGACY / LOCAL MEDIA
+# ============================================================
+#
+# Netlify Blob uploads DO NOT use MEDIA_ROOT.
+#
+# These settings are retained so old Django media files and
+# local-development uploads can still work.
+#
+# New profile/post/food images should be uploaded through:
+#
+# React
+#   -> /.netlify/functions/media-upload
+#   -> Netlify Blob
+#   -> URL/key
+#   -> Django database
+#
+# ============================================================
 
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+
+MEDIA_ROOT = (
+    BASE_DIR / "media"
+)
 
 
-# -------------------------------------------------------------------
-# CORS and CSRF
-# -------------------------------------------------------------------
+# ============================================================
+# CORS
+# ============================================================
 
 CORS_ALLOWED_ORIGINS = get_env_list(
     "CORS_ALLOWED_ORIGINS",
     (
         "http://localhost:5173,"
         "http://127.0.0.1:5173,"
+        "http://localhost:8888,"
+        "http://127.0.0.1:8888,"
         "https://foodkindlapp.netlify.app"
     ),
 )
+
+
+CORS_ALLOW_CREDENTIALS = True
+
+
+# ============================================================
+# CSRF
+# ============================================================
 
 CSRF_TRUSTED_ORIGINS = get_env_list(
     "CSRF_TRUSTED_ORIGINS",
     (
         "http://localhost:5173,"
         "http://127.0.0.1:5173,"
+        "http://localhost:8888,"
+        "http://127.0.0.1:8888,"
         "https://foodkindlapp.netlify.app,"
-        "https://foodkindl-api.onrender.com"
+        "https://foodkindl-app-06aug2026.onrender.com"
     ),
 )
 
-CORS_ALLOW_CREDENTIALS = True
 
-
-# -------------------------------------------------------------------
-# Django REST Framework
-# -------------------------------------------------------------------
+# ============================================================
+# DJANGO REST FRAMEWORK
+# ============================================================
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
@@ -226,100 +308,147 @@ REST_FRAMEWORK = {
             "authentication.JWTAuthentication"
         ),
     ),
+
     "DEFAULT_PERMISSION_CLASSES": (
         (
             "rest_framework.permissions."
             "IsAuthenticatedOrReadOnly"
         ),
     ),
+
     "DEFAULT_PAGINATION_CLASS": (
         "rest_framework.pagination."
         "PageNumberPagination"
     ),
+
     "PAGE_SIZE": 12,
 }
 
 
-# -------------------------------------------------------------------
+# ============================================================
 # JWT
-# -------------------------------------------------------------------
+# ============================================================
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(hours=4),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=14),
+    "ACCESS_TOKEN_LIFETIME":
+        timedelta(hours=4),
+
+    "REFRESH_TOKEN_LIFETIME":
+        timedelta(days=14),
 }
 
 
-# -------------------------------------------------------------------
-# Render HTTPS and security
-# -------------------------------------------------------------------
+# ============================================================
+# RENDER / HTTPS
+# ============================================================
 
 SECURE_PROXY_SSL_HEADER = (
     "HTTP_X_FORWARDED_PROTO",
     "https",
 )
 
-SESSION_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_SECURE = not DEBUG
+
+SESSION_COOKIE_SECURE = (
+    not DEBUG
+)
+
+CSRF_COOKIE_SECURE = (
+    not DEBUG
+)
+
 
 SECURE_CONTENT_TYPE_NOSNIFF = True
+
 X_FRAME_OPTIONS = "DENY"
 
 
-# -------------------------------------------------------------------
-# Default primary key
-# -------------------------------------------------------------------
+# ============================================================
+# DEFAULT PRIMARY KEY
+# ============================================================
 
-DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+DEFAULT_AUTO_FIELD = (
+    "django.db.models.BigAutoField"
+)
 
 
-# -------------------------------------------------------------------
-# Logging
-# -------------------------------------------------------------------
+# ============================================================
+# LOGGING
+# ============================================================
 
 LOGGING = {
     "version": 1,
-    "disable_existing_loggers": False,
+
+    "disable_existing_loggers":
+        False,
 
     "formatters": {
         "verbose": {
             "format": (
-                "{levelname} {asctime} "
-                "{name} {module} {message}"
+                "{levelname} "
+                "{asctime} "
+                "{name} "
+                "{module} "
+                "{message}"
             ),
+
             "style": "{",
         },
     },
 
     "handlers": {
         "console": {
-            "class": "logging.StreamHandler",
-            "formatter": "verbose",
+            "class":
+                "logging.StreamHandler",
+
+            "formatter":
+                "verbose",
         },
     },
 
     "loggers": {
         "django": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
+            "handlers": [
+                "console"
+            ],
+
+            "level":
+                "INFO",
+
+            "propagate":
+                False,
         },
 
         "django.request": {
-            "handlers": ["console"],
-            "level": "ERROR",
-            "propagate": False,
+            "handlers": [
+                "console"
+            ],
+
+            "level":
+                "ERROR",
+
+            "propagate":
+                False,
         },
 
         "django.db.backends": {
-            "handlers": ["console"],
-            "level": "ERROR",
-            "propagate": False,
+            "handlers": [
+                "console"
+            ],
+
+            "level":
+                "ERROR",
+
+            "propagate":
+                False,
         },
     },
 
     "root": {
-        "handlers": ["console"],
-        "level": "INFO",
+        "handlers": [
+            "console"
+        ],
+
+        "level":
+            "INFO",
     },
 }

@@ -70,9 +70,14 @@ export default function Connect() {
 
     if (
       path.startsWith("http://") ||
-      path.startsWith("https://")
+      path.startsWith("https://") ||
+      path.startsWith("blob:")
     ) {
       return path;
+    }
+
+    if (path.startsWith("/.netlify/")) {
+      return `${window.location.origin}${path}`;
     }
 
     return `${API_BASE}${path}`;
@@ -103,8 +108,8 @@ export default function Connect() {
 
   function getMemberPhoto(member) {
     return getMediaUrl(
-      member?.profile
-        ?.profile_image_1
+      member?.profile?.profile_image_1_url ||
+      member?.profile?.profile_image_1
     );
   }
 

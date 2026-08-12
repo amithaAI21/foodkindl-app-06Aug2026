@@ -11,31 +11,76 @@ import { useAuth } from "../context/AuthContext";
 export default function Dashboard() {
   const { user } = useAuth();
 
-  const profile = user?.profile || {};
+  const profile =
+    user?.profile || {};
 
-  const API_BASE =
+
+  const API_BASE = (
     import.meta.env.VITE_BACKEND_URL ||
-    "http://127.0.0.1:8000";
+    "http://127.0.0.1:8000"
+  ).replace(/\/+$/, "");
 
-  function getProfileImageUrl(imagePath) {
+
+  // =========================================================
+  // PROFILE IMAGE URL
+  //
+  // Supports:
+  // 1. Netlify Blob absolute URLs
+  // 2. Netlify function relative URLs
+  // 3. Old Django media URLs
+  // =========================================================
+
+  function getProfileImageUrl(
+    imagePath
+  ) {
     if (!imagePath) {
       return null;
     }
 
+
     if (
-      imagePath.startsWith("http://") ||
-      imagePath.startsWith("https://")
+      imagePath.startsWith(
+        "http://"
+      ) ||
+      imagePath.startsWith(
+        "https://"
+      ) ||
+      imagePath.startsWith(
+        "blob:"
+      )
     ) {
       return imagePath;
     }
 
-    return `${API_BASE}${imagePath}`;
+
+    if (
+      imagePath.startsWith(
+        "/.netlify/"
+      )
+    ) {
+      return (
+        `${window.location.origin}${imagePath}`
+      );
+    }
+
+
+    return (
+      `${API_BASE}${imagePath}`
+    );
   }
+
+
+  // =========================================================
+  // NETLIFY BLOB FIRST
+  // OLD DJANGO IMAGE SECOND
+  // =========================================================
 
   const profileImage =
     getProfileImageUrl(
+      profile.profile_image_1_url ||
       profile.profile_image_1
     );
+
 
   const displayName =
     user?.first_name ||
@@ -43,18 +88,26 @@ export default function Dashboard() {
     user?.email ||
     "FoodKindl Member";
 
+
   const isVerified =
     profile.is_verified === true &&
     profile.verification_status ===
       "approved";
 
+
   const verificationStatus =
     profile.verification_status ||
     "not_submitted";
 
+
+  // =========================================================
+  // VERIFICATION MESSAGE
+  // =========================================================
+
   function getVerificationMessage() {
     if (
-      verificationStatus === "pending"
+      verificationStatus ===
+      "pending"
     ) {
       return (
         "Government ID approval is pending. " +
@@ -62,8 +115,10 @@ export default function Dashboard() {
       );
     }
 
+
     if (
-      verificationStatus === "rejected"
+      verificationStatus ===
+      "rejected"
     ) {
       return (
         "Government ID was rejected. " +
@@ -71,104 +126,203 @@ export default function Dashboard() {
       );
     }
 
+
     return (
       "Government ID verification is required " +
       "for Connect and private messaging."
     );
   }
 
+
+  // =========================================================
+  // DASHBOARD CARDS
+  // =========================================================
+
   const cards = [
     {
-      icon: <MessageSquare />,
-      title: "CommuniQ",
+      icon:
+        <MessageSquare />,
+
+      title:
+        "CommuniQ",
+
       text:
-        "Share food stories, photos, videos, articles, comments, reactions, saves and reposts.",
-      path: "/community",
-      locked: false,
+        (
+          "Share food stories, photos, videos, " +
+          "articles, comments, reactions, saves and reposts."
+        ),
+
+      path:
+        "/community",
+
+      locked:
+        false,
     },
 
+
     {
-      icon: <UsersRound />,
-      title: "Connect",
-      text: isVerified
-        ? (
-            "Discover members, send connection requests, manage connections, and view profiles."
-          )
-        : getVerificationMessage(),
+      icon:
+        <UsersRound />,
 
-      path: isVerified
-        ? "/connect"
-        : "/verification-required",
+      title:
+        "Connect",
 
-      locked: !isVerified,
+      text:
+        isVerified
+          ? (
+              "Discover members, send connection requests, " +
+              "manage connections, and view profiles."
+            )
+          : getVerificationMessage(),
+
+      path:
+        isVerified
+          ? "/connect"
+          : "/verification-required",
+
+      locked:
+        !isVerified,
     },
 
+
     {
-      icon: <UserRound />,
-      title: "Profile",
+      icon:
+        <UserRound />,
+
+      title:
+        "Profile",
+
       text:
-        "Update your city, preferences, profile photos, Government ID, and safety controls.",
-      path: "/profile",
-      locked: false,
+        (
+          "Update your city, preferences, profile photos, " +
+          "Government ID, and safety controls."
+        ),
+
+      path:
+        "/profile",
+
+      locked:
+        false,
     },
   ];
 
+
+  // =========================================================
+  // PAGE
+  // =========================================================
+
   return (
     <main className="app-page">
+
       <section className="dashboard-hero">
+
         <div className="dashboard-welcome">
+
           <div className="eyebrow left">
             FoodKindl Connect
           </div>
 
+
           <h1>
             Welcome, {displayName}
           </h1>
+
 
           <p>
             What would you like to do
             today?
           </p>
 
+
           {!isVerified && (
+
             <Link
               to="/verification-required"
+
               className={
                 `dashboard-verification-banner ${
                   verificationStatus
                 }`
               }
             >
-              <LockKeyhole size={20} />
+
+              <LockKeyhole
+                size={20}
+              />
+
 
               <div>
+
                 <strong>
-                  {verificationStatus ===
-                  "pending"
-                    ? "Verification pending"
-                    : verificationStatus ===
-                        "rejected"
-                      ? "Verification rejected"
-                      : "Identity verification required"}
+                  {
+                    verificationStatus ===
+                    "pending"
+                      ? (
+                          "Verification pending"
+                        )
+
+                      : verificationStatus ===
+                          "rejected"
+                        ? (
+                            "Verification rejected"
+                          )
+
+                        : (
+                            "Identity verification required"
+                          )
+                  }
                 </strong>
 
+
                 <span>
-                  {getVerificationMessage()}
+                  {
+                    getVerificationMessage()
+                  }
                 </span>
+
               </div>
+
             </Link>
           )}
+
         </div>
 
+
+        {/* ===================================================
+            PROFILE PHOTO
+
+            Netlify:
+            profile_image_1_url
+
+            Legacy Django:
+            profile_image_1
+        =================================================== */}
+
         <div className="dashboard-profile-visual">
+
           {profileImage ? (
+
             <img
-              src={profileImage}
-              alt={`${displayName}'s profile`}
+              src={
+                profileImage
+              }
+
+              alt={
+                `${displayName}'s profile`
+              }
+
               className="dashboard-profile-image"
+
               onError={(event) => {
+                console.error(
+                  "Dashboard profile image failed to load:",
+                  profileImage
+                );
+
+
                 event.currentTarget.style.display =
                   "none";
+
 
                 event.currentTarget
                   .nextElementSibling
@@ -177,7 +331,9 @@ export default function Dashboard() {
                   );
               }}
             />
+
           ) : null}
+
 
           <div
             className={
@@ -188,14 +344,17 @@ export default function Dashboard() {
               }`
             }
           >
+
             <UserRound
               size={72}
               strokeWidth={1.4}
             />
 
+
             <span>
               No profile photo uploaded
             </span>
+
 
             <Link
               to="/profile"
@@ -203,49 +362,105 @@ export default function Dashboard() {
             >
               Add Profile Photo
             </Link>
+
           </div>
+
         </div>
+
       </section>
+
+
+      {/* =====================================================
+          DASHBOARD CARDS
+      ===================================================== */}
 
       <section className="dashboard-grid">
-        {cards.map((card) => (
-          <Link
-            key={card.title}
-            to={card.path}
-            className={
-              card.locked
-                ? "dashboard-card locked"
-                : "dashboard-card"
-            }
-          >
-            <span className="icon-box">
-              {card.locked ? (
-                <LockKeyhole />
-              ) : (
-                card.icon
-              )}
-            </span>
 
-            <h2>{card.title}</h2>
+        {cards.map(
+          (card) => (
 
-            <p>{card.text}</p>
+            <Link
+              key={
+                card.title
+              }
 
-            {card.locked && (
-              <span className="dashboard-lock-label">
-                <LockKeyhole size={15} />
+              to={
+                card.path
+              }
 
-                {verificationStatus ===
-                "pending"
-                  ? "Awaiting admin approval"
-                  : verificationStatus ===
-                      "rejected"
-                    ? "Upload another ID"
-                    : "Verification required"}
+              className={
+                card.locked
+                  ? (
+                      "dashboard-card locked"
+                    )
+                  : (
+                      "dashboard-card"
+                    )
+              }
+            >
+
+              <span className="icon-box">
+
+                {
+                  card.locked
+                    ? (
+                        <LockKeyhole />
+                      )
+                    : (
+                        card.icon
+                      )
+                }
+
               </span>
-            )}
-          </Link>
-        ))}
+
+
+              <h2>
+                {card.title}
+              </h2>
+
+
+              <p>
+                {card.text}
+              </p>
+
+
+              {card.locked && (
+
+                <span className="dashboard-lock-label">
+
+                  <LockKeyhole
+                    size={15}
+                  />
+
+
+                  {
+                    verificationStatus ===
+                    "pending"
+                      ? (
+                          "Awaiting admin approval"
+                        )
+
+                      : verificationStatus ===
+                          "rejected"
+                        ? (
+                            "Upload another ID"
+                          )
+
+                        : (
+                            "Verification required"
+                          )
+                  }
+
+                </span>
+              )}
+
+            </Link>
+
+          )
+        )}
+
       </section>
+
     </main>
   );
 }

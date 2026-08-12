@@ -81,6 +81,14 @@ class PostSerializer(serializers.ModelSerializer):
             "text",
             "image",
             "video",
+            "image_blob_key",
+            "image_url",
+            "image_original_name",
+            "image_content_type",
+            "video_blob_key",
+            "video_url",
+            "video_original_name",
+            "video_content_type",
             "location_name",
             "latitude",
             "longitude",
@@ -130,6 +138,38 @@ class PostSerializer(serializers.ModelSerializer):
             "video": {
                 "required": False,
                 "allow_null": True,
+            },
+            "image_blob_key": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "image_url": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "image_original_name": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "image_content_type": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "video_blob_key": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "video_url": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "video_original_name": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "video_content_type": {
+                "required": False,
+                "allow_blank": True,
             },
             "location_name": {
                 "required": False,
@@ -291,12 +331,24 @@ class PostSerializer(serializers.ModelSerializer):
             getattr(instance, "image", None),
         )
 
+        image_url = attrs.get(
+            "image_url",
+            getattr(instance, "image_url", ""),
+        )
+
         video = attrs.get(
             "video",
             getattr(instance, "video", None),
         )
 
+        video_url = attrs.get(
+            "video_url",
+            getattr(instance, "video_url", ""),
+        )
+
         title = title.strip() if title else ""
+        image_url = image_url.strip() if image_url else ""
+        video_url = video_url.strip() if video_url else ""
         text = text.strip() if text else ""
 
         valid_post_types = {
@@ -330,17 +382,29 @@ class PostSerializer(serializers.ModelSerializer):
                 }
             )
 
-        if post_type == "image" and not image:
+        if (
+            post_type == "image"
+            and not image
+            and not image_url
+        ):
             raise serializers.ValidationError(
                 {
-                    "image": "Please upload an image."
+                    "image_url": (
+                        "Please upload an image."
+                    )
                 }
             )
 
-        if post_type == "video" and not video:
+        if (
+            post_type == "video"
+            and not video
+            and not video_url
+        ):
             raise serializers.ValidationError(
                 {
-                    "video": "Please upload a video."
+                    "video_url": (
+                        "Please upload a video."
+                    )
                 }
             )
 
@@ -400,6 +464,10 @@ class FoodListingSerializer(serializers.ModelSerializer):
             "location",
             "pickup_time",
             "image",
+            "image_blob_key",
+            "image_url",
+            "image_original_name",
+            "image_content_type",
             "status",
             "claimed_by",
             "created_at",
@@ -412,6 +480,29 @@ class FoodListingSerializer(serializers.ModelSerializer):
             "claimed_by",
             "created_at",
         )
+
+        extra_kwargs = {
+            "image": {
+                "required": False,
+                "allow_null": True,
+            },
+            "image_blob_key": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "image_url": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "image_original_name": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "image_content_type": {
+                "required": False,
+                "allow_blank": True,
+            },
+        }
 
     def validate_quantity_kg(self, value):
         if value <= 0:
