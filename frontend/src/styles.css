@@ -5962,3 +5962,61 @@ input::placeholder {
   }
 }
 
+.profile-image-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.profile-image-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profile-photo-preview {
+  width: 100%;
+  height: 260px;
+  overflow: hidden;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid
+    rgba(255, 112, 67, 0.25);
+
+  border-radius: 16px;
+
+  background: #0d0807;
+}
+
+.profile-photo-preview img {
+  display: block;
+
+  width: 100%;
+  height: 100%;
+
+  object-fit: cover;
+}
+
+.profile-photo-preview
+.image-placeholder {
+  color: #c8aaa2;
+  text-align: center;
+}
+
+.profile-image-upload
+input[type="file"] {
+  width: 100%;
+}
+
+@media (
+  max-width: 900px
+) {
+  .profile-image-grid {
+    grid-template-columns:
+      1fr;
+  }
+}

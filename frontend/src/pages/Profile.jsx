@@ -8,10 +8,15 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-import { Link } from "react-router-dom";
+import {
+  Link,
+} from "react-router-dom";
 
 import api from "../api";
-import { useAuth } from "../context/AuthContext";
+
+import {
+  useAuth,
+} from "../context/AuthContext";
 
 
 const initialFiles = {
@@ -20,143 +25,6 @@ const initialFiles = {
   profile_image_3: null,
   government_id: null,
 };
-
-
-// ============================================================
-// NETLIFY BLOB UPLOAD
-// ============================================================
-
-async function uploadMediaToNetlify(file, uploadType = "public") {
-  if (!file) {
-    throw new Error(
-      "No file selected."
-    );
-  }
-
-  const formData =
-    new FormData();
-
-  formData.append(
-    "file",
-    file
-  );
-
-  formData.append(
-    "upload_type",
-    uploadType
-  );
-
-  let response;
-
-  try {
-    response = await fetch(
-      "/.netlify/functions/media-upload",
-      {
-        method: "POST",
-        body: formData,
-      }
-    );
-  } catch (networkError) {
-    console.error(
-      "NETLIFY UPLOAD NETWORK ERROR:",
-      networkError
-    );
-
-    throw new Error(
-      "Could not connect to the media upload service."
-    );
-  }
-
-
-  // IMPORTANT:
-  // Don't directly use response.json().
-  // Netlify can sometimes return an empty
-  // or non-JSON response.
-
-  const responseText =
-    await response.text();
-
-  let data = null;
-
-
-  if (responseText) {
-    try {
-      data =
-        JSON.parse(
-          responseText
-        );
-    } catch (parseError) {
-      console.error(
-        "NETLIFY NON-JSON RESPONSE:",
-        responseText
-      );
-
-      throw new Error(
-        `Media upload returned an invalid response. Status: ${response.status}`
-      );
-    }
-  }
-
-
-  if (!response.ok) {
-    console.error(
-      "NETLIFY UPLOAD FAILED:",
-      {
-        status:
-          response.status,
-
-        responseText,
-
-        data,
-      }
-    );
-
-    throw new Error(
-      data?.error ||
-      data?.detail ||
-      `Profile photo upload failed with status ${response.status}.`
-    );
-  }
-
-
-  if (
-    !data ||
-    !data.key
-  ) {
-    console.error(
-      "NETLIFY UPLOAD MISSING KEY:",
-      {
-        status:
-          response.status,
-
-        responseText,
-
-        data,
-      }
-    );
-
-    throw new Error(
-      "Netlify upload completed without returning a blob key."
-    );
-  }
-
-  if (
-    uploadType !== "government_id" &&
-    !data.url
-  ) {
-    console.error(
-      "NETLIFY PROFILE UPLOAD MISSING URL:",
-      data
-    );
-
-    throw new Error(
-      "Profile image upload completed without returning a media URL."
-    );
-  }
-
-
-  return data;
-}
 
 
 // ============================================================
@@ -178,7 +46,174 @@ function normalizeDietaryPreference(
 
 
 // ============================================================
-// PROFILE
+// NETLIFY BLOB UPLOAD
+// ============================================================
+
+async function uploadMediaToNetlify(
+  file,
+  uploadType = "public"
+) {
+  if (!file) {
+    throw new Error(
+      "No file selected."
+    );
+  }
+
+
+  const formData =
+    new FormData();
+
+
+  formData.append(
+    "file",
+    file
+  );
+
+
+  // IMPORTANT:
+  // media-upload.mjs expects upload_type
+  formData.append(
+    "upload_type",
+    uploadType
+  );
+
+
+  let response;
+
+
+  try {
+    response =
+      await fetch(
+        "/.netlify/functions/media-upload",
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+  } catch (
+    networkError
+  ) {
+    console.error(
+      "NETLIFY UPLOAD NETWORK ERROR:",
+      networkError
+    );
+
+
+    throw new Error(
+      "Could not connect to the media upload service."
+    );
+  }
+
+
+  const responseText =
+    await response.text();
+
+
+  let data = null;
+
+
+  if (responseText) {
+    try {
+      data =
+        JSON.parse(
+          responseText
+        );
+
+    } catch (
+      parseError
+    ) {
+      console.error(
+        "NETLIFY INVALID RESPONSE:",
+        responseText
+      );
+
+
+      throw new Error(
+        (
+          "Media upload returned "
+          +
+          "an invalid response."
+        )
+      );
+    }
+  }
+
+
+  if (!response.ok) {
+    console.error(
+      "NETLIFY UPLOAD FAILED:",
+      {
+        status:
+          response.status,
+
+        data,
+
+        responseText,
+      }
+    );
+
+
+    throw new Error(
+      data?.error ||
+      data?.detail ||
+      (
+        `Upload failed with `
+        +
+        `status ${response.status}.`
+      )
+    );
+  }
+
+
+  if (
+    !data ||
+    !data.success ||
+    !data.key
+  ) {
+    console.error(
+      "NETLIFY UPLOAD MISSING DATA:",
+      data
+    );
+
+
+    throw new Error(
+      (
+        "Netlify upload did not "
+        +
+        "return a Blob key."
+      )
+    );
+  }
+
+
+  // Public/profile photos MUST have a URL.
+  if (
+    uploadType === "public" &&
+    !data.url
+  ) {
+    console.error(
+      "NETLIFY PUBLIC UPLOAD MISSING URL:",
+      data
+    );
+
+
+    throw new Error(
+      (
+        "Profile photo uploaded "
+        +
+        "but no media URL was returned."
+      )
+    );
+  }
+
+
+  return data;
+}
+
+
+// ============================================================
+// PROFILE PAGE
 // ============================================================
 
 export default function Profile() {
@@ -192,83 +227,168 @@ export default function Profile() {
     user?.profile || {};
 
 
-  const [form, setForm] =
-    useState({
-      bio:
-        profile.bio || "",
-
-      city:
-        profile.city || "",
-
-      locality:
-        profile.locality || "",
-
-      postcode:
-        profile.postcode || "",
-
-      college_workplace:
-        profile.college_workplace ||
-        "",
-
-      role:
-        profile.role || "",
-
-      interests:
-        profile.interests || "",
-
-      dietary_preference:
-        normalizeDietaryPreference(
-          profile.dietary_preference
-        ),
-
-      women_only_mode:
-        profile.women_only_mode ||
-        false,
-
-      government_id_type:
-        profile.government_id_type ||
-        "",
-    });
-
-
-  const [files, setFiles] =
-    useState(initialFiles);
-
-
-  const [previews, setPreviews] =
-    useState({
-      profile_image_1:
-        profile.profile_image_1_url ||
-        profile.profile_image_1 ||
-        "",
-
-      profile_image_2:
-        profile.profile_image_2_url ||
-        profile.profile_image_2 ||
-        "",
-
-      profile_image_3:
-        profile.profile_image_3_url ||
-        profile.profile_image_3 ||
-        "",
-    });
-
-
-  const [message, setMessage] =
-    useState("");
-
-  const [error, setError] =
-    useState("");
-
-  const [submitting, setSubmitting] =
-    useState(false);
-
-  const [refreshing, setRefreshing] =
-    useState(false);
+  const API_BASE = (
+    import.meta.env.VITE_BACKEND_URL ||
+    "http://127.0.0.1:8000"
+  ).replace(
+    /\/+$/,
+    ""
+  );
 
 
   // ==========================================================
-  // REFRESH PROFILE DATA
+  // MEDIA URL
+  // ==========================================================
+
+  function getMediaUrl(
+    value
+  ) {
+    if (!value) {
+      return "";
+    }
+
+
+    if (
+      value.startsWith(
+        "http://"
+      ) ||
+      value.startsWith(
+        "https://"
+      ) ||
+      value.startsWith(
+        "blob:"
+      )
+    ) {
+      return value;
+    }
+
+
+    if (
+      value.startsWith(
+        "/.netlify/"
+      )
+    ) {
+      return (
+        `${window.location.origin}${value}`
+      );
+    }
+
+
+    return (
+      `${API_BASE}${value}`
+    );
+  }
+
+
+  // ==========================================================
+  // FORM
+  // ==========================================================
+
+  const [
+    form,
+    setForm,
+  ] = useState({
+    bio:
+      profile.bio || "",
+
+    city:
+      profile.city || "",
+
+    locality:
+      profile.locality || "",
+
+    postcode:
+      profile.postcode || "",
+
+    college_workplace:
+      profile.college_workplace ||
+      "",
+
+    role:
+      profile.role || "",
+
+    interests:
+      profile.interests || "",
+
+    dietary_preference:
+      normalizeDietaryPreference(
+        profile.dietary_preference
+      ),
+
+    women_only_mode:
+      profile.women_only_mode ||
+      false,
+
+    government_id_type:
+      profile.government_id_type ||
+      "",
+  });
+
+
+  const [
+    files,
+    setFiles,
+  ] = useState(
+    initialFiles
+  );
+
+
+  const [
+    previews,
+    setPreviews,
+  ] = useState({
+    profile_image_1:
+      getMediaUrl(
+        profile.profile_image_1_url ||
+        profile.profile_image_1
+      ),
+
+    profile_image_2:
+      getMediaUrl(
+        profile.profile_image_2_url ||
+        profile.profile_image_2
+      ),
+
+    profile_image_3:
+      getMediaUrl(
+        profile.profile_image_3_url ||
+        profile.profile_image_3
+      ),
+  });
+
+
+  const [
+    message,
+    setMessage,
+  ] = useState("");
+
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+
+  const [
+    submitting,
+    setSubmitting,
+  ] = useState(false);
+
+
+  const [
+    refreshing,
+    setRefreshing,
+  ] = useState(false);
+
+
+  const [
+    uploadStatus,
+    setUploadStatus,
+  ] = useState("");
+
+
+  // ==========================================================
+  // RELOAD FORM AFTER USER REFRESH
   // ==========================================================
 
   useEffect(() => {
@@ -312,22 +432,71 @@ export default function Profile() {
 
     setPreviews({
       profile_image_1:
-        profile.profile_image_1_url ||
-        profile.profile_image_1 ||
-        "",
+        getMediaUrl(
+          profile.profile_image_1_url ||
+          profile.profile_image_1
+        ),
 
       profile_image_2:
-        profile.profile_image_2_url ||
-        profile.profile_image_2 ||
-        "",
+        getMediaUrl(
+          profile.profile_image_2_url ||
+          profile.profile_image_2
+        ),
 
       profile_image_3:
-        profile.profile_image_3_url ||
-        profile.profile_image_3 ||
-        "",
+        getMediaUrl(
+          profile.profile_image_3_url ||
+          profile.profile_image_3
+        ),
     });
 
   }, [user]);
+
+
+  // ==========================================================
+  // REFRESH PROFILE
+  // ==========================================================
+
+  async function refreshProfile() {
+    if (!reloadUser) {
+      return;
+    }
+
+
+    setRefreshing(true);
+    setError("");
+    setMessage("");
+
+
+    try {
+      await reloadUser();
+
+
+      setMessage(
+        "Profile refreshed."
+      );
+
+    } catch (
+      refreshError
+    ) {
+      console.error(
+        "PROFILE REFRESH ERROR:",
+        refreshError
+      );
+
+
+      setError(
+        (
+          "Profile could not "
+          +
+          "be refreshed."
+        )
+      );
+
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
 
   // ==========================================================
@@ -346,7 +515,9 @@ export default function Profile() {
 
 
     setForm(
-      (previousForm) => ({
+      (
+        previousForm
+      ) => ({
         ...previousForm,
 
         [name]:
@@ -359,7 +530,7 @@ export default function Profile() {
 
 
   // ==========================================================
-  // FILE CHANGE + IMMEDIATE PREVIEW
+  // FILE CHANGE
   // ==========================================================
 
   function handleFileChange(
@@ -367,7 +538,8 @@ export default function Profile() {
   ) {
     const {
       name,
-      files: selectedFiles,
+      files:
+        selectedFiles,
     } = event.target;
 
 
@@ -384,32 +556,56 @@ export default function Profile() {
     setMessage("");
 
 
-    // --------------------------------------------------------
+    // ========================================================
     // PROFILE PHOTO VALIDATION
-    // --------------------------------------------------------
+    // ========================================================
 
     if (
       name.startsWith(
         "profile_image"
       )
     ) {
-      const allowedImageTypes = [
+      const allowedTypes = [
         "image/jpeg",
         "image/png",
         "image/webp",
       ];
 
 
+      const extension =
+        selectedFile.name
+          .split(".")
+          .pop()
+          ?.toLowerCase();
+
+
+      const allowedExtensions = [
+        "jpg",
+        "jpeg",
+        "png",
+        "webp",
+      ];
+
+
       if (
-        !allowedImageTypes.includes(
+        !allowedTypes.includes(
           selectedFile.type
+        ) &&
+        !allowedExtensions.includes(
+          extension
         )
       ) {
         setError(
-          "Profile photos must be JPG, PNG or WebP."
+          (
+            "Profile photos must "
+            +
+            "be JPG, PNG or WebP."
+          )
         );
 
-        event.target.value = "";
+
+        event.target.value =
+          "";
 
         return;
       }
@@ -417,28 +613,34 @@ export default function Profile() {
 
       if (
         selectedFile.size >
-        5 * 1024 * 1024
+        10 * 1024 * 1024
       ) {
         setError(
-          "Each profile photo must be smaller than 5 MB."
+          (
+            "Each profile photo "
+            +
+            "must be smaller than 10 MB."
+          )
         );
 
-        event.target.value = "";
+
+        event.target.value =
+          "";
 
         return;
       }
     }
 
 
-    // --------------------------------------------------------
+    // ========================================================
     // GOVERNMENT ID VALIDATION
-    // --------------------------------------------------------
+    // ========================================================
 
     if (
       name ===
       "government_id"
     ) {
-      const allowedDocumentTypes = [
+      const allowedTypes = [
         "image/jpeg",
         "image/png",
         "image/webp",
@@ -446,16 +648,41 @@ export default function Profile() {
       ];
 
 
+      const extension =
+        selectedFile.name
+          .split(".")
+          .pop()
+          ?.toLowerCase();
+
+
+      const allowedExtensions = [
+        "jpg",
+        "jpeg",
+        "png",
+        "webp",
+        "pdf",
+      ];
+
+
       if (
-        !allowedDocumentTypes.includes(
+        !allowedTypes.includes(
           selectedFile.type
+        ) &&
+        !allowedExtensions.includes(
+          extension
         )
       ) {
         setError(
-          "Government ID must be JPG, PNG, WebP or PDF."
+          (
+            "Government ID must "
+            +
+            "be JPG, PNG, WebP or PDF."
+          )
         );
 
-        event.target.value = "";
+
+        event.target.value =
+          "";
 
         return;
       }
@@ -466,22 +693,30 @@ export default function Profile() {
         5 * 1024 * 1024
       ) {
         setError(
-          "Government ID must be smaller than 5 MB."
+          (
+            "Government ID must "
+            +
+            "be smaller than 5 MB."
+          )
         );
 
-        event.target.value = "";
+
+        event.target.value =
+          "";
 
         return;
       }
     }
 
 
-    // --------------------------------------------------------
-    // SAVE FILE
-    // --------------------------------------------------------
+    // ========================================================
+    // STORE FILE
+    // ========================================================
 
     setFiles(
-      (previousFiles) => ({
+      (
+        previousFiles
+      ) => ({
         ...previousFiles,
 
         [name]:
@@ -490,9 +725,9 @@ export default function Profile() {
     );
 
 
-    // --------------------------------------------------------
-    // IMMEDIATE PHOTO PREVIEW
-    // --------------------------------------------------------
+    // ========================================================
+    // IMMEDIATE PROFILE PREVIEW
+    // ========================================================
 
     if (
       name.startsWith(
@@ -506,7 +741,9 @@ export default function Profile() {
 
 
       setPreviews(
-        (previousPreviews) => ({
+        (
+          previousPreviews
+        ) => ({
           ...previousPreviews,
 
           [name]:
@@ -550,31 +787,28 @@ export default function Profile() {
         ?.profile_image_3_url?.[0] ||
 
       data
-        ?.profile_image_1?.[0] ||
+        ?.profile_image_1_blob_key?.[0] ||
 
       data
-        ?.profile_image_2?.[0] ||
+        ?.profile_image_2_blob_key?.[0] ||
 
       data
-        ?.profile_image_3?.[0] ||
+        ?.profile_image_3_blob_key?.[0] ||
 
       data
-        ?.government_id?.[0] ||
+        ?.government_id_blob_key?.[0] ||
+
+      data
+        ?.government_id_original_name?.[0] ||
+
+      data
+        ?.government_id_content_type?.[0] ||
 
       data
         ?.government_id_type?.[0] ||
 
       data
         ?.dietary_preference?.[0] ||
-
-      data
-        ?.postcode?.[0] ||
-
-      data
-        ?.college_workplace?.[0] ||
-
-      data
-        ?.role?.[0] ||
 
       data
         ?.detail ||
@@ -587,41 +821,7 @@ export default function Profile() {
 
 
   // ==========================================================
-  // MANUAL REFRESH
-  // ==========================================================
-
-  async function refreshProfile() {
-    setRefreshing(true);
-    setError("");
-    setMessage("");
-
-    try {
-      if (reloadUser) {
-        await reloadUser();
-      }
-
-      setFiles(initialFiles);
-
-      setMessage(
-        "Profile refreshed."
-      );
-    } catch (refreshError) {
-      console.error(
-        "PROFILE REFRESH FAILED:",
-        refreshError
-      );
-
-      setError(
-        "Profile could not be refreshed."
-      );
-    } finally {
-      setRefreshing(false);
-    }
-  }
-
-
-  // ==========================================================
-  // SUBMIT
+  // SAVE
   // ==========================================================
 
   async function submit(
@@ -632,6 +832,7 @@ export default function Profile() {
 
     setMessage("");
     setError("");
+    setUploadStatus("");
 
 
     const dietaryPreference =
@@ -640,25 +841,23 @@ export default function Profile() {
       );
 
 
-    // --------------------------------------------------------
-    // GOVERNMENT ID TYPE REQUIRED
-    // --------------------------------------------------------
-
     if (
       files.government_id &&
       !form.government_id_type
     ) {
       setError(
-        "Please select the Government ID type."
+        (
+          "Please select the "
+          +
+          "Government ID type."
+        )
       );
 
       return;
     }
 
 
-    setSubmitting(
-      true
-    );
+    setSubmitting(true);
 
 
     try {
@@ -737,7 +936,7 @@ export default function Profile() {
 
 
       // ======================================================
-      // PROFILE PHOTOS -> NETLIFY BLOBS
+      // PROFILE PHOTOS -> NETLIFY BLOB
       // ======================================================
 
       const imageFields = [
@@ -760,8 +959,20 @@ export default function Profile() {
         }
 
 
+        setUploadStatus(
+          `Uploading ${
+            field.replaceAll(
+              "_",
+              " "
+            )
+          }...`
+        );
+
+
         console.log(
-          `Uploading ${field} to Netlify...`
+          "PROFILE IMAGE SELECTED:",
+          field,
+          selectedFile
         );
 
 
@@ -773,32 +984,38 @@ export default function Profile() {
 
 
         console.log(
-          "NETLIFY UPLOAD SUCCESS:",
+          "PROFILE IMAGE BLOB RESULT:",
+          field,
           uploaded
         );
 
 
-        // profile_image_1
-        // becomes
-        // profile_image_1_url
-
+        // URL
         formData.append(
           `${field}_url`,
           uploaded.url
+        );
+
+
+        // Blob key
+        formData.append(
+          `${field}_blob_key`,
+          uploaded.key
         );
       }
 
 
       // ======================================================
-      // GOVERNMENT ID -> PRIVATE NETLIFY BLOB STORE
+      // GOVERNMENT ID -> PRIVATE BLOB
       // ======================================================
 
       if (
         files.government_id
       ) {
-        console.log(
-          "Uploading Government ID to private Netlify Blob store..."
+        setUploadStatus(
+          "Uploading Government ID..."
         );
+
 
         const uploadedGovernmentId =
           await uploadMediaToNetlify(
@@ -806,21 +1023,25 @@ export default function Profile() {
             "government_id"
           );
 
+
         console.log(
-          "GOVERNMENT ID BLOB UPLOAD SUCCESS:",
+          "GOVERNMENT ID RESULT:",
           uploadedGovernmentId
         );
+
 
         formData.append(
           "government_id_blob_key",
           uploadedGovernmentId.key
         );
 
+
         formData.append(
           "government_id_original_name",
           uploadedGovernmentId.filename ||
           files.government_id.name
         );
+
 
         formData.append(
           "government_id_content_type",
@@ -831,27 +1052,34 @@ export default function Profile() {
 
 
       // ======================================================
-      // DEBUG
+      // DEBUG BEFORE DJANGO
       // ======================================================
 
       console.log(
-        "Saving profile to Django..."
+        "PROFILE DATA SENT TO DJANGO:"
       );
 
 
       for (
-        const pair of
-        formData.entries()
+        const [
+          key,
+          value,
+        ] of formData.entries()
       ) {
         console.log(
-          pair[0],
-          pair[1]
+          key,
+          value
         );
       }
 
 
+      setUploadStatus(
+        "Saving profile..."
+      );
+
+
       // ======================================================
-      // DJANGO SAVE
+      // SAVE TO DJANGO
       // ======================================================
 
       const response =
@@ -862,29 +1090,72 @@ export default function Profile() {
 
 
       console.log(
-        "PROFILE SAVE SUCCESS:",
+        "PROFILE SAVE RESPONSE:",
         response.status,
         response.data
       );
 
 
       // ======================================================
-      // RESET FILES
+      // IMPORTANT:
+      // USE RESPONSE URLS IMMEDIATELY
       // ======================================================
 
-      setFiles(
-        initialFiles
-      );
+      const savedProfile =
+        response.data?.profile ||
+        response.data ||
+        {};
 
 
-      setForm(
-        (previousForm) => ({
-          ...previousForm,
+      setPreviews(
+        (
+          previous
+        ) => ({
+          profile_image_1:
+            getMediaUrl(
+              savedProfile
+                .profile_image_1_url
+              ||
+              savedProfile
+                .profile_image_1
+              ||
+              previous
+                .profile_image_1
+            ),
 
-          dietary_preference:
-            dietaryPreference,
+          profile_image_2:
+            getMediaUrl(
+              savedProfile
+                .profile_image_2_url
+              ||
+              savedProfile
+                .profile_image_2
+              ||
+              previous
+                .profile_image_2
+            ),
+
+          profile_image_3:
+            getMediaUrl(
+              savedProfile
+                .profile_image_3_url
+              ||
+              savedProfile
+                .profile_image_3
+              ||
+              previous
+                .profile_image_3
+            ),
         })
       );
+
+
+      setFiles({
+        ...initialFiles,
+      });
+
+
+      setUploadStatus("");
 
 
       setMessage(
@@ -892,10 +1163,7 @@ export default function Profile() {
       );
 
 
-      // ======================================================
-      // RELOAD USER
-      // ======================================================
-
+      // Reload latest profile from backend
       if (reloadUser) {
         await reloadUser();
       }
@@ -911,15 +1179,7 @@ export default function Profile() {
 
 
       console.error(
-        "HTTP STATUS:",
-        requestError
-          ?.response
-          ?.status
-      );
-
-
-      console.error(
-        "BACKEND RESPONSE:",
+        "PROFILE BACKEND RESPONSE:",
         requestError
           ?.response
           ?.data
@@ -933,6 +1193,7 @@ export default function Profile() {
         setError(
           requestError.message
         );
+
       } else {
         setError(
           getErrorMessage(
@@ -945,42 +1206,93 @@ export default function Profile() {
 
 
     } finally {
-      setSubmitting(
-        false
-      );
+      setSubmitting(false);
+      setUploadStatus("");
     }
   }
 
 
   // ==========================================================
-  // KEEP YOUR EXISTING JSX BELOW THIS POINT
+  // PAGE
   // ==========================================================
 
   return (
     <main className="app-page">
 
+      {/* ======================================================
+          TOP ACTIONS
+      ====================================================== */}
+
+      <div
+        className="profile-page-actions"
+        style={{
+          display: "flex",
+          justifyContent:
+            "space-between",
+          alignItems: "center",
+          gap: "12px",
+          marginBottom: "24px",
+        }}
+      >
+
+        <Link
+          to="/dashboard"
+          className="secondary-button"
+        >
+          <ArrowLeft
+            size={18}
+          />
+
+          Back to Dashboard
+        </Link>
+
+
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={
+            refreshProfile
+          }
+          disabled={
+            refreshing ||
+            submitting
+          }
+        >
+          <RefreshCw
+            size={18}
+          />
+
+          {
+            refreshing
+              ? "Refreshing..."
+              : "Refresh"
+          }
+        </button>
+
+      </div>
+
+
+      {/* ======================================================
+          HEADING
+      ====================================================== */}
+
       <div className="app-heading">
 
         <div>
-
-          <Link
-            to="/dashboard"
-            className="community-back-link"
-          >
-            <ArrowLeft size={18} />
-
-            Back to Dashboard
-          </Link>
 
           <div className="eyebrow left">
             Profile and Preferences
           </div>
 
+
           <h1>
-            {user?.full_name ||
+            {
+              user?.full_name ||
               user?.first_name ||
-              user?.email}
+              user?.email
+            }
           </h1>
+
 
           <p>
             {user?.email}
@@ -988,28 +1300,12 @@ export default function Profile() {
 
         </div>
 
-        <button
-          type="button"
-          className="secondary-button"
-          onClick={refreshProfile}
-          disabled={refreshing || submitting}
-        >
-          <RefreshCw
-            size={18}
-            className={
-              refreshing
-                ? "spin"
-                : ""
-            }
-          />
-
-          {refreshing
-            ? "Refreshing..."
-            : "Refresh"}
-        </button>
-
       </div>
 
+
+      {/* ======================================================
+          FORM
+      ====================================================== */}
 
       <form
         className="app-panel profile-form"
@@ -1017,7 +1313,9 @@ export default function Profile() {
         encType="multipart/form-data"
       >
 
-        {/* PERSONAL INFORMATION */}
+        {/* ====================================================
+            PERSONAL INFORMATION
+        ==================================================== */}
 
         <section className="profile-form-section">
 
@@ -1040,6 +1338,7 @@ export default function Profile() {
                 }
                 placeholder="Bengaluru"
               />
+
             </label>
 
 
@@ -1057,6 +1356,7 @@ export default function Profile() {
                 }
                 placeholder="Indiranagar"
               />
+
             </label>
 
           </div>
@@ -1079,6 +1379,7 @@ export default function Profile() {
                 placeholder="560038"
                 maxLength={12}
               />
+
             </label>
 
 
@@ -1096,6 +1397,7 @@ export default function Profile() {
                 }
                 placeholder="Scaler or university name"
               />
+
             </label>
 
           </div>
@@ -1113,6 +1415,7 @@ export default function Profile() {
               }
               placeholder="Software Engineer, Student, Chef..."
             />
+
           </label>
 
 
@@ -1127,12 +1430,15 @@ export default function Profile() {
               }
               placeholder="Tell the FoodKindl community about yourself."
             />
+
           </label>
 
         </section>
 
 
-        {/* FOOD PREFERENCES */}
+        {/* ====================================================
+            FOOD PREFERENCES
+        ==================================================== */}
 
         <section className="profile-form-section">
 
@@ -1199,8 +1505,9 @@ export default function Profile() {
               onChange={
                 handleInputChange
               }
-              placeholder="Home cooking, baking, Italian food, Kerala cuisine..."
+              placeholder="Home cooking, baking, Kerala cuisine..."
             />
+
           </label>
 
 
@@ -1225,7 +1532,9 @@ export default function Profile() {
         </section>
 
 
-        {/* PROFILE PHOTOS */}
+        {/* ====================================================
+            PROFILE PHOTOS
+        ==================================================== */}
 
         <section className="profile-form-section">
 
@@ -1243,6 +1552,8 @@ export default function Profile() {
 
           <div className="profile-image-grid">
 
+            {/* PROFILE PHOTO 1 */}
+
             <label className="profile-image-upload">
 
               <span>
@@ -1250,18 +1561,28 @@ export default function Profile() {
               </span>
 
 
-              {previews.profile_image_1 ? (
-                <img
-                  src={
-                    previews.profile_image_1
-                  }
-                  alt="Profile preview 1"
-                />
-              ) : (
-                <div className="image-placeholder">
-                  No image selected
-                </div>
-              )}
+              <div className="profile-photo-preview">
+
+                {
+                  previews
+                    .profile_image_1
+                    ? (
+                      <img
+                        src={
+                          previews
+                            .profile_image_1
+                        }
+                        alt="Profile preview 1"
+                      />
+                    )
+                    : (
+                      <div className="image-placeholder">
+                        No image selected
+                      </div>
+                    )
+                }
+
+              </div>
 
 
               <input
@@ -1276,6 +1597,8 @@ export default function Profile() {
             </label>
 
 
+            {/* PROFILE PHOTO 2 */}
+
             <label className="profile-image-upload">
 
               <span>
@@ -1283,18 +1606,28 @@ export default function Profile() {
               </span>
 
 
-              {previews.profile_image_2 ? (
-                <img
-                  src={
-                    previews.profile_image_2
-                  }
-                  alt="Profile preview 2"
-                />
-              ) : (
-                <div className="image-placeholder">
-                  No image selected
-                </div>
-              )}
+              <div className="profile-photo-preview">
+
+                {
+                  previews
+                    .profile_image_2
+                    ? (
+                      <img
+                        src={
+                          previews
+                            .profile_image_2
+                        }
+                        alt="Profile preview 2"
+                      />
+                    )
+                    : (
+                      <div className="image-placeholder">
+                        No image selected
+                      </div>
+                    )
+                }
+
+              </div>
 
 
               <input
@@ -1309,6 +1642,8 @@ export default function Profile() {
             </label>
 
 
+            {/* PROFILE PHOTO 3 */}
+
             <label className="profile-image-upload">
 
               <span>
@@ -1316,18 +1651,28 @@ export default function Profile() {
               </span>
 
 
-              {previews.profile_image_3 ? (
-                <img
-                  src={
-                    previews.profile_image_3
-                  }
-                  alt="Profile preview 3"
-                />
-              ) : (
-                <div className="image-placeholder">
-                  No image selected
-                </div>
-              )}
+              <div className="profile-photo-preview">
+
+                {
+                  previews
+                    .profile_image_3
+                    ? (
+                      <img
+                        src={
+                          previews
+                            .profile_image_3
+                        }
+                        alt="Profile preview 3"
+                      />
+                    )
+                    : (
+                      <div className="image-placeholder">
+                        No image selected
+                      </div>
+                    )
+                }
+
+              </div>
 
 
               <input
@@ -1346,7 +1691,9 @@ export default function Profile() {
         </section>
 
 
-        {/* GOVERNMENT ID */}
+        {/* ====================================================
+            GOVERNMENT ID
+        ==================================================== */}
 
         <section className="profile-form-section">
 
@@ -1357,8 +1704,8 @@ export default function Profile() {
 
           <p className="upload-help">
             Upload one government-issued
-            identity document. It will not
-            be displayed publicly.
+            identity document. It will
+            remain private.
           </p>
 
 
@@ -1424,32 +1771,42 @@ export default function Profile() {
                 handleFileChange
               }
             />
+
           </label>
 
 
-          {files.government_id && (
-            <p className="existing-file-message">
+          {
+            files.government_id &&
+            (
+              <p className="existing-file-message">
 
-              Selected document:{" "}
+                Selected document:{" "}
 
-              <strong>
-                {
-                  files
-                    .government_id
-                    .name
-                }
-              </strong>
+                <strong>
+                  {
+                    files
+                      .government_id
+                      .name
+                  }
+                </strong>
 
-            </p>
-          )}
+              </p>
+            )
+          }
 
 
-          {profile.government_id_uploaded && (
-            <p className="existing-file-message">
-              A Government ID has already
-              been uploaded.
-            </p>
-          )}
+          {
+            profile
+              .government_id_uploaded &&
+            (
+              <p className="existing-file-message">
+
+                A Government ID has
+                already been uploaded.
+
+              </p>
+            )
+          }
 
 
           <p className="existing-file-message">
@@ -1457,58 +1814,93 @@ export default function Profile() {
             Verification status:{" "}
 
             <strong>
-              {(
-                profile
-                  .verification_status ||
-                "not_submitted"
-              ).replaceAll(
-                "_",
-                " "
-              )}
+              {
+                (
+                  profile
+                    .verification_status ||
+                  "not_submitted"
+                )
+                  .replaceAll(
+                    "_",
+                    " "
+                  )
+              }
             </strong>
 
           </p>
 
 
-          {profile.rejection_reason && (
-            <p className="error-message">
+          {
+            profile
+              .rejection_reason &&
+            (
+              <p className="error-message">
 
-              Rejection reason:{" "}
+                Rejection reason:{" "}
 
-              {
-                profile
-                  .rejection_reason
-              }
+                {
+                  profile
+                    .rejection_reason
+                }
 
-            </p>
-          )}
+              </p>
+            )
+          }
 
         </section>
 
 
-        {error && (
-          <p className="error-message">
-            {error}
-          </p>
-        )}
+        {/* ====================================================
+            STATUS
+        ==================================================== */}
+
+        {
+          uploadStatus &&
+          (
+            <p className="form-message">
+              {uploadStatus}
+            </p>
+          )
+        }
 
 
-        {message && (
-          <p className="form-message">
-            {message}
-          </p>
-        )}
+        {
+          error &&
+          (
+            <p className="error-message">
+              {error}
+            </p>
+          )
+        }
 
+
+        {
+          message &&
+          (
+            <p className="form-message">
+              {message}
+            </p>
+          )
+        }
+
+
+        {/* ====================================================
+            SAVE
+        ==================================================== */}
 
         <button
           type="submit"
           className="primary-button"
-          disabled={submitting}
+          disabled={
+            submitting
+          }
         >
 
-          {submitting
-            ? "Saving Profile..."
-            : "Save Profile"}
+          {
+            submitting
+              ? "Saving Profile..."
+              : "Save Profile"
+          }
 
         </button>
 
