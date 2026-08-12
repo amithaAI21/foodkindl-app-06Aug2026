@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  ArrowLeft,
   Bookmark,
   FileText,
   Image as ImageIcon,
@@ -7,6 +8,7 @@ import {
   MessageCircle,
   MessageSquare,
   MessagesSquare,
+  RefreshCw,
   Repeat2,
   Share2,
   Video,
@@ -1502,23 +1504,54 @@ export default function Community() {
 
   return (
     <main className="app-page community-page">
+      <div
+        className="community-top-actions"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "12px",
+          flexWrap: "wrap",
+          marginBottom: "22px",
+        }}
+      >
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => navigate("/dashboard")}
+        >
+          <ArrowLeft size={18} />
+          Back to Dashboard
+        </button>
+
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={loadCommunity}
+          disabled={loading}
+        >
+          <RefreshCw size={18} />
+          {loading ? "Refreshing..." : "Refresh"}
+        </button>
+      </div>
+
       <div className="app-heading community-page-heading">
-  <div>
-    <div className="eyebrow left">
-      Community
-    </div>
+        <div>
+          <div className="eyebrow left">
+            Community
+          </div>
 
-    <h1>
-      Food stories and moments
-    </h1>
+          <h1>
+            Food stories and moments
+          </h1>
 
-    <p>
-      Share a post, publish an
-      article, upload an image,
-      or share a video.
-    </p>
-  </div>
-</div>
+          <p>
+            Share a post, publish an
+            article, upload an image,
+            or share a video.
+          </p>
+        </div>
+      </div>
 
 
 {/* <AIRecipeSearch /> */}
@@ -1610,15 +1643,7 @@ export default function Community() {
                 </h2>
               </div>
 
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={
-                  loadCommunity
-                }
-              >
-                Refresh
-              </button>
+
             </div>
 
             {loading ? (

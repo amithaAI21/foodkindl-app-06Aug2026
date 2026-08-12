@@ -1,4 +1,8 @@
-import { useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 
 import {
   ArrowLeft,
@@ -6,6 +10,7 @@ import {
   Eye,
   MapPin,
   MessageCircle,
+  RefreshCw,
   Repeat2,
   Share2,
 } from "lucide-react";
@@ -55,16 +60,15 @@ const REACTIONS = [
 
 export default function CommunityPostDetail() {
   const { postId } = useParams();
+  const { user } = useAuth();
 
-  const { user } =
-    useAuth();
-
-
-  const [post, setPost] =
-    useState(null);
+  const [post, setPost] = useState(null);
 
   const [loading, setLoading] =
     useState(true);
+
+  const [refreshing, setRefreshing] =
+    useState(false);
 
   const [error, setError] =
     useState("");
@@ -95,18 +99,12 @@ export default function CommunityPostDetail() {
 
   // =========================================================
   // MEDIA URL
-  //
-  // Supports:
-  // 1. Netlify Blob absolute URLs
-  // 2. Netlify function URLs
-  // 3. Old Django media URLs
   // =========================================================
 
   function getMediaUrl(path) {
     if (!path) {
       return "";
     }
-
 
     if (
       path.startsWith("http://") ||
@@ -116,8 +114,6 @@ export default function CommunityPostDetail() {
       return path;
     }
 
-
-    // Netlify Blob media function URL
     if (
       path.startsWith("/.netlify/")
     ) {
@@ -126,8 +122,6 @@ export default function CommunityPostDetail() {
       );
     }
 
-
-    // Old Django media
     return `${API_BASE}${path}`;
   }
 
@@ -136,9 +130,7 @@ export default function CommunityPostDetail() {
   // AUTHOR
   // =========================================================
 
-  function getAuthorName(
-    author
-  ) {
+  function getAuthorName(author) {
     return (
       author?.full_name ||
 
@@ -156,9 +148,7 @@ export default function CommunityPostDetail() {
   }
 
 
-  function getAuthorInitial(
-    author
-  ) {
+  function getAuthorInitial(author) {
     return (
       getAuthorName(author)
         .charAt(0)
@@ -169,17 +159,9 @@ export default function CommunityPostDetail() {
 
   // =========================================================
   // PROFILE IMAGE
-  //
-  // NEW:
-  // profile_image_1_url = Netlify Blob
-  //
-  // OLD:
-  // profile_image_1 = Django media
   // =========================================================
 
-  function getAuthorImage(
-    author
-  ) {
+  function getAuthorImage(author) {
     const imagePath =
       author
         ?.profile
@@ -188,7 +170,6 @@ export default function CommunityPostDetail() {
       author
         ?.profile
         ?.profile_image_1;
-
 
     return getMediaUrl(
       imagePath
@@ -200,13 +181,10 @@ export default function CommunityPostDetail() {
   // POST IMAGE
   // =========================================================
 
-  function getPostImage(
-    currentPost
-  ) {
+  function getPostImage(currentPost) {
     const imagePath =
       currentPost?.image_url ||
       currentPost?.image;
-
 
     return getMediaUrl(
       imagePath
@@ -218,13 +196,10 @@ export default function CommunityPostDetail() {
   // POST VIDEO
   // =========================================================
 
-  function getPostVideo(
-    currentPost
-  ) {
+  function getPostVideo(currentPost) {
     const videoPath =
       currentPost?.video_url ||
       currentPost?.video;
-
 
     return getMediaUrl(
       videoPath
@@ -250,25 +225,21 @@ export default function CommunityPostDetail() {
 
 
   // =========================================================
-  // ERROR
+  // ERROR MESSAGE
   // =========================================================
 
-  function getErrorMessage(
-    data
-  ) {
+  function getErrorMessage(data) {
     if (!data) {
       return (
         "The request could not be completed."
       );
     }
 
-
     if (
       typeof data === "string"
     ) {
       return data;
     }
-
 
     return (
       data?.reaction_type?.[0] ||
@@ -285,12 +256,9 @@ export default function CommunityPostDetail() {
   // PRIVATE MESSAGE
   // =========================================================
 
-  function openDirectMessage(
-    member
-  ) {
+  function openDirectMessage(member) {
     setError("");
     setSuccess("");
-
 
     if (!member?.id) {
       setError(
@@ -299,7 +267,6 @@ export default function CommunityPostDetail() {
 
       return;
     }
-
 
     if (
       member.id === user?.id
@@ -310,7 +277,6 @@ export default function CommunityPostDetail() {
 
       return;
     }
-
 
     window.dispatchEvent(
       new CustomEvent(
@@ -329,18 +295,29 @@ export default function CommunityPostDetail() {
   // LOAD POST
   // =========================================================
 
-  useEffect(() => {
-    async function loadPost() {
-      setLoading(true);
-      setError("");
+  const loadPost = useCallback(
+    async ({
+      showFullLoader = false,
+    } = {}) => {
 
+      if (!postId) {
+        return;
+      }
+
+      if (showFullLoader) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
+
+      setError("");
+      setSuccess("");
 
       try {
         const response =
           await api.get(
             `/posts/${postId}/`
           );
-
 
         setPost(
           response.data
@@ -355,7 +332,6 @@ export default function CommunityPostDetail() {
           requestError.response?.data ||
             requestError
         );
-
 
         if (
           requestError
@@ -383,15 +359,33 @@ export default function CommunityPostDetail() {
 
       } finally {
         setLoading(false);
+        setRefreshing(false);
       }
-    }
+    },
+    [postId]
+  );
 
 
-    if (postId) {
-      loadPost();
-    }
+  // =========================================================
+  // INITIAL LOAD
+  // =========================================================
 
-  }, [postId]);
+  useEffect(() => {
+    loadPost({
+      showFullLoader: true,
+    });
+  }, [loadPost]);
+
+
+  // =========================================================
+  // REFRESH BUTTON
+  // =========================================================
+
+  async function refreshPost() {
+    await loadPost({
+      showFullLoader: false,
+    });
+  }
 
 
   // =========================================================
@@ -404,10 +398,8 @@ export default function CommunityPostDetail() {
         return;
       }
 
-
       const storageKey =
         `foodkindl-view-${post.id}`;
-
 
       if (
         sessionStorage.getItem(
@@ -417,19 +409,16 @@ export default function CommunityPostDetail() {
         return;
       }
 
-
       sessionStorage.setItem(
         storageKey,
         "true"
       );
-
 
       try {
         const response =
           await api.post(
             `/posts/${post.id}/record_view/`
           );
-
 
         setPost(
           (currentPost) => ({
@@ -449,7 +438,6 @@ export default function CommunityPostDetail() {
           storageKey
         );
 
-
         console.error(
           "Unable to record view:",
           requestError.response?.data ||
@@ -457,7 +445,6 @@ export default function CommunityPostDetail() {
         );
       }
     }
-
 
     recordUniqueView();
 
@@ -475,7 +462,6 @@ export default function CommunityPostDetail() {
     setSuccess("");
     setOpenReactions(false);
 
-
     try {
       if (
         post.my_reaction ===
@@ -485,7 +471,6 @@ export default function CommunityPostDetail() {
           await api.delete(
             `/posts/${post.id}/remove_reaction/`
           );
-
 
         setPost(
           (currentPost) => ({
@@ -508,10 +493,8 @@ export default function CommunityPostDetail() {
           })
         );
 
-
         return;
       }
-
 
       const response =
         await api.post(
@@ -521,7 +504,6 @@ export default function CommunityPostDetail() {
               reactionType,
           }
         );
-
 
       setPost(
         (currentPost) => ({
@@ -553,7 +535,6 @@ export default function CommunityPostDetail() {
           requestError
       );
 
-
       setError(
         getErrorMessage(
           requestError
@@ -573,13 +554,11 @@ export default function CommunityPostDetail() {
     setError("");
     setSuccess("");
 
-
     try {
       const response =
         await api.post(
           `/posts/${post.id}/toggle_save/`
         );
-
 
       setPost(
         (currentPost) => ({
@@ -589,7 +568,6 @@ export default function CommunityPostDetail() {
             response.data.saved,
         })
       );
-
 
       setSuccess(
         response.data.saved
@@ -606,7 +584,6 @@ export default function CommunityPostDetail() {
           requestError
       );
 
-
       setError(
         getErrorMessage(
           requestError
@@ -622,25 +599,19 @@ export default function CommunityPostDetail() {
   // COMMENT
   // =========================================================
 
-  async function addComment(
-    event
-  ) {
+  async function addComment(event) {
     event.preventDefault();
-
 
     const cleanComment =
       commentText.trim();
-
 
     if (!cleanComment) {
       return;
     }
 
-
     setCommenting(true);
     setError("");
     setSuccess("");
-
 
     try {
       const response =
@@ -651,7 +622,6 @@ export default function CommunityPostDetail() {
               cleanComment,
           }
         );
-
 
       setPost(
         (currentPost) => ({
@@ -675,9 +645,7 @@ export default function CommunityPostDetail() {
         })
       );
 
-
       setCommentText("");
-
 
       setSuccess(
         "Comment posted successfully."
@@ -691,7 +659,6 @@ export default function CommunityPostDetail() {
         requestError.response?.data ||
           requestError
       );
-
 
       setError(
         getErrorMessage(
@@ -718,17 +685,14 @@ export default function CommunityPostDetail() {
         ""
       );
 
-
     if (
       message === null
     ) {
       return;
     }
 
-
     setError("");
     setSuccess("");
-
 
     try {
       await api.post(
@@ -738,7 +702,6 @@ export default function CommunityPostDetail() {
             message.trim(),
         }
       );
-
 
       setPost(
         (currentPost) => ({
@@ -760,7 +723,6 @@ export default function CommunityPostDetail() {
         })
       );
 
-
       setSuccess(
         "Post shared to the FoodKindl community."
       );
@@ -773,7 +735,6 @@ export default function CommunityPostDetail() {
         requestError.response?.data ||
           requestError
       );
-
 
       setError(
         getErrorMessage(
@@ -793,7 +754,6 @@ export default function CommunityPostDetail() {
   async function shareExternally() {
     const shareUrl =
       window.location.href;
-
 
     try {
       if (
@@ -818,7 +778,6 @@ export default function CommunityPostDetail() {
           .writeText(
             shareUrl
           );
-
 
         setSuccess(
           "Post link copied successfully."
@@ -855,7 +814,7 @@ export default function CommunityPostDetail() {
 
 
   // =========================================================
-  // ERROR
+  // ERROR WITHOUT POST
   // =========================================================
 
   if (
@@ -869,17 +828,43 @@ export default function CommunityPostDetail() {
           {error}
         </p>
 
-        <Link
-          to="/community"
-          className="secondary-button"
+        <div
+          style={{
+            display: "flex",
+            gap: "12px",
+            flexWrap: "wrap",
+          }}
         >
-          Back to Community
-        </Link>
+          <Link
+            to="/community"
+            className="secondary-button"
+          >
+            <ArrowLeft size={18} />
+            Back to Community
+          </Link>
+
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={refreshPost}
+            disabled={refreshing}
+          >
+            <RefreshCw size={18} />
+
+            {refreshing
+              ? "Refreshing..."
+              : "Try Again"}
+          </button>
+        </div>
 
       </main>
     );
   }
 
+
+  // =========================================================
+  // POST NOT FOUND
+  // =========================================================
 
   if (!post) {
     return (
@@ -893,6 +878,7 @@ export default function CommunityPostDetail() {
           to="/community"
           className="secondary-button"
         >
+          <ArrowLeft size={18} />
           Back to Community
         </Link>
 
@@ -910,24 +896,20 @@ export default function CommunityPostDetail() {
       post.author
     );
 
-
   const authorImage =
     getAuthorImage(
       post.author
     );
-
 
   const postImage =
     getPostImage(
       post
     );
 
-
   const postVideo =
     getPostVideo(
       post
     );
-
 
   const authorProfilePath =
     post.author?.id
@@ -944,19 +926,51 @@ export default function CommunityPostDetail() {
 
       <article className="community-detail-card">
 
-        <Link
-          to="/community"
-          className="community-back-link"
+        {/* =================================================
+            BACK + REFRESH
+        ================================================= */}
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent:
+              "space-between",
+            alignItems: "center",
+            gap: "12px",
+            flexWrap: "wrap",
+            marginBottom: "20px",
+          }}
         >
-          <ArrowLeft size={18} />
 
-          Back to Community
-        </Link>
+          <Link
+            to="/community"
+            className="secondary-button"
+          >
+            <ArrowLeft size={18} />
+
+            Back to Community
+          </Link>
 
 
-        {/* ===================================================
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={refreshPost}
+            disabled={refreshing}
+          >
+            <RefreshCw size={18} />
+
+            {refreshing
+              ? "Refreshing..."
+              : "Refresh"}
+          </button>
+
+        </div>
+
+
+        {/* =================================================
             AUTHOR
-        =================================================== */}
+        ================================================= */}
 
         <div className="post-author-row">
 
@@ -1027,9 +1041,9 @@ export default function CommunityPostDetail() {
         </div>
 
 
-        {/* ===================================================
+        {/* =================================================
             LOCATION
-        =================================================== */}
+        ================================================= */}
 
         {post.location_name && (
           <div className="post-location">
@@ -1042,9 +1056,9 @@ export default function CommunityPostDetail() {
         )}
 
 
-        {/* ===================================================
+        {/* =================================================
             TITLE
-        =================================================== */}
+        ================================================= */}
 
         {post.title && (
           <h1>
@@ -1053,9 +1067,9 @@ export default function CommunityPostDetail() {
         )}
 
 
-        {/* ===================================================
+        {/* =================================================
             TEXT
-        =================================================== */}
+        ================================================= */}
 
         {post.text && (
           <div className="community-full-text">
@@ -1064,15 +1078,9 @@ export default function CommunityPostDetail() {
         )}
 
 
-        {/* ===================================================
+        {/* =================================================
             IMAGE
-
-            Netlify:
-            post.image_url
-
-            Legacy Django:
-            post.image
-        =================================================== */}
+        ================================================= */}
 
         {postImage && (
           <img
@@ -1096,15 +1104,9 @@ export default function CommunityPostDetail() {
         )}
 
 
-        {/* ===================================================
+        {/* =================================================
             VIDEO
-
-            Netlify:
-            post.video_url
-
-            Legacy Django:
-            post.video
-        =================================================== */}
+        ================================================= */}
 
         {postVideo && (
           <video
@@ -1135,9 +1137,9 @@ export default function CommunityPostDetail() {
         )}
 
 
-        {/* ===================================================
+        {/* =================================================
             METRICS
-        =================================================== */}
+        ================================================= */}
 
         <div className="community-metrics">
 
@@ -1167,9 +1169,9 @@ export default function CommunityPostDetail() {
         </div>
 
 
-        {/* ===================================================
+        {/* =================================================
             ACTIONS
-        =================================================== */}
+        ================================================= */}
 
         <div className="community-detail-actions">
 
@@ -1360,9 +1362,9 @@ export default function CommunityPostDetail() {
         </div>
 
 
-        {/* ===================================================
+        {/* =================================================
             MESSAGES
-        =================================================== */}
+        ================================================= */}
 
         {error && (
           <p className="error-message">
@@ -1378,9 +1380,9 @@ export default function CommunityPostDetail() {
         )}
 
 
-        {/* ===================================================
+        {/* =================================================
             COMMENTS
-        =================================================== */}
+        ================================================= */}
 
         <section className="community-comments">
 
