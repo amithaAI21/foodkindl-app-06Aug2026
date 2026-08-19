@@ -14,11 +14,12 @@ import {
   Users,
   Utensils,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../api";
 import SectionHeading from "../components/SectionHeading";
 import StatCard from "../components/StatCard";
+import { useAuth } from "../context/AuthContext";
 
 const steps = [
   {
@@ -30,13 +31,13 @@ const steps = [
   {
     icon: <Send />,
     number: "02",
-    title: "Cook, Meet, and Eat Together",
-    text: "Message individuals or groups, choose a date, cuisine, menu, and venue, and send them a Food Invite. You can cook together at home, meet in a shared space, or plan a meal at a local eatery.For your first gathering, we recommend meeting as a group in a comfortable public or shared space.",
+    title: "Connect and Send a Food Invite",
+    text: "Message individuals or groups, choose a date, cuisine, menu, and venue, and send them a Food Invite. You can cook together at home, meet in a shared space, or plan a meal at a local eatery. For your first gathering, we recommend meeting as a group in a comfortable public or shared space.",
   },
   {
     icon: <Utensils />,
     number: "03",
-    title: "Cook, Meet, or Dine",
+    title: "Cook, Meet, and Eat Together",
     text: "Meet at the planned venue, prepare a meal together, or explore a local restaurant. Share good food, conversations, laughter, and memorable moments.",
   },
   {
@@ -47,6 +48,7 @@ const steps = [
   },
 ];
 
+
 export default function LandingPage() {
   // const [stats, setStats] = useState({
   //   members: 0,
@@ -54,6 +56,20 @@ export default function LandingPage() {
   //   waste_reduced_kg: 0,
   // });
   const [statsLoading, setStatsLoading] = useState(true);
+  const { user } = useAuth();
+
+  const videoRef = useRef(null);
+  const [videoStarted, setVideoStarted] = useState(false);
+
+  function playStoryVideo() {
+    setVideoStarted(true);
+
+    requestAnimationFrame(() => {
+      if (videoRef.current) {
+        videoRef.current.play();
+      }
+    });
+  }
 
 //   useEffect(() => {
 //   async function loadStats() {
@@ -131,7 +147,7 @@ export default function LandingPage() {
 
           <div className="hero-actions">
             <Link className="primary-button" to="/register">
-              Launch Connect App <ArrowRight size={18} />
+              Explore FoodKindl Connect <ArrowRight size={18} />
             </Link>
             <a className="secondary-button" href="#how-it-works">
               How It Works
@@ -143,25 +159,25 @@ export default function LandingPage() {
   <div className="hero-floating-wrapper">
     <div className="hero-main-card">
       <img
-        src="/images/food1.png"
+        src="/images/homepage1.jpg"
         alt="Healthy FoodKindl meal"
         className="hero-main-image"
       />
     </div>
 
-    <div className="hero-floating-image hero-floating-one">
+    {/* <div className="hero-floating-image hero-floating-one">
       <img
         src="/images/food2.png"
         alt="Healthy meal"
       />
-    </div>
-
+    </div> */}
+{/* 
     <div className="hero-floating-image hero-floating-two">
       <img
         src="/images/food3.png"
         alt="Fresh food bowl"
       />
-    </div>
+    </div> */}
   </div>
 </div>
 
@@ -184,12 +200,13 @@ export default function LandingPage() {
           />
         </div> */}
       </section>
+      
 
       <section className="content-section" id="how-it-works">
         <SectionHeading
           // eyebrow="Simple flow"
           title="How FoodKindl"
-          accent="Works"
+          accent="Connect Works"
           description="In four simple steps, turn a shared love of food into meaningful connections, memorable meals, and new friendships."
         />
 
@@ -207,12 +224,178 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* =========================================================
+          LEARN, CREATE AND SHARE
+      ========================================================= */}
+
+     <section
+  className="content-section learn-create-section"
+  id="learn-create-share"
+>
+  {/* =====================================================
+      HEADER
+  ===================================================== */}
+
+  <div className="learn-create-header">
+
+    <div className="learn-create-pill">
+      <Heart size={15} fill="currentColor" />
+      FOR FOOD LOVERS, BY FOOD LOVERS
+    </div>
+
+    <h2>
+      Learn, Create and <span>Share</span>
+    </h2>
+
+    <div className="learn-create-divider">
+      <span />
+      <Utensils size={25} />
+      <span />
+    </div>
+
+    <p>
+      Get personalised recipes with FoodKindl AI and
+      discover food content shared by your community-all
+      on one platform dedicated entirely to food.
+    </p>
+
+  </div>
+
+
+  {/* =====================================================
+      FEATURE CARDS
+  ===================================================== */}
+
+  <div className="learn-create-grid">
+
+
+    {/* ===================================================
+        FOODKINDL AI
+    =================================================== */}
+
+    <article className="learn-image-card">
+
+      <img
+        src="/images/food11.png"
+        alt="FoodKindl AI personalised recipes"
+        className="learn-image-card-bg"
+      />
+
+      <div className="learn-image-card-overlay" />
+
+
+      <div className="learn-image-card-content">
+
+        <div className="learn-circle-icon">
+          <Sparkles size={33} />
+        </div>
+
+
+        <h3>
+          FoodKindl AI
+        </h3>
+
+
+        <div className="learn-small-line" />
+
+
+        <p>
+          Get personalised recipes based on
+          your dietary preferences and
+          available ingredients.
+        </p>
+
+
+        {/* Logged in → AI Kitchen
+            Logged out → Login */}
+
+        <Link
+          to={
+            user
+              ? "/ai-kitchen"
+              : "/login"
+          }
+          className="learn-image-button"
+        >
+          Smart recipes for you
+
+          <ArrowRight size={19} />
+        </Link>
+
+      </div>
+
+    </article>
+
+
+    {/* ===================================================
+        FOOD VIDEOS
+    =================================================== */}
+
+    <article className="learn-image-card">
+
+      <img
+        src="/images/food22.png"
+        alt="Food preparation videos"
+        className="learn-image-card-bg video-image-position"
+      />
+
+      <div className="learn-image-card-overlay" />
+
+
+      <div className="learn-image-card-content">
+
+        <div className="learn-circle-icon">
+          <Play size={34} />
+        </div>
+
+
+        <h3>
+          Food Videos
+        </h3>
+
+
+        <div className="learn-small-line" />
+
+
+        <p>
+          View photos, recipes and food-preparation
+          videos shared by your connections,
+          influencers, chefs and food creators.
+          Discover cooking tips, food reviews and
+          regional dishes.
+        </p>
+
+
+        {/* Logged in → Community
+            Logged out → Login */}
+
+        <Link
+          to={
+            user
+              ? "/community"
+              : "/login"
+          }
+          className="learn-image-button"
+        >
+          Watch &amp; share
+
+          <ArrowRight size={19} />
+        </Link>
+
+      </div>
+
+    </article>
+
+  </div>
+
+</section>
+
       <section className="showcase-section">
         <SectionHeading
           eyebrow="Product showcase"
           title="The"
           accent="FoodKindl App"
-          description="A cinematic interface designed to coordinate menus, host gatherings, and spark real offline friendships."
+          description="FoodKindl is a food-focused social community where people can connect online and come together in real life through cooking and shared meals."
         />
 
         <div className="phone-showcase">
@@ -225,9 +408,9 @@ export default function LandingPage() {
           <div className="phone-shell">
             <div className="phone-notch" />
             <div className="profile-mini">
-              <div className="avatar-mini">SJ</div>
+              <div className="avatar-mini">LN</div>
               <div>
-                <strong>Sarah Jenkins</strong>
+                <strong>Lakshmi Nair</strong>
                 <small>UI Designer · 2.4 km away</small>
               </div>
             </div>
@@ -245,7 +428,7 @@ export default function LandingPage() {
 
               <div className="coming-soon-tag">
                 🚀 Coming Soon
-                <small>Mobile App Under Development</small>
+                <small>Mobile App Coming Soon</small>
               </div>
 
               <button disabled className="coming-soon-button">
@@ -271,25 +454,49 @@ FoodKindl makes it easy for individuals and groups to discover like-minded peopl
   </div>
 
   <div className="video-card">
-    <video
-      className="story-video"
-      controls
-      preload="metadata"
-      poster="/images/video-thumbnail.jpg"
-    >
-      <source
-        src="/videos/video1.mp4"
-        type="video/mp4"
-      />
 
-      Your browser does not support the video tag.
-    </video>
+  <video
+    ref={videoRef}
+    className="story-video"
+    preload="metadata"
+    poster="/images/video-thumbnail.jpg"
+    controls={videoStarted}
+  >
+    <source
+      src="/videos/video1.mp4"
+      type="video/mp4"
+    />
 
-    {/* <div className="video-details">
-      <small>2:40 min</small>
-      <strong>Redefining Modern Hospitality</strong>
-    </div> */}
-  </div>
+    Your browser does not support the video tag.
+  </video>
+
+
+  {!videoStarted && (
+
+    <div className="story-video-overlay">
+
+      <button
+        type="button"
+        className="story-video-play"
+        onClick={playStoryVideo}
+        aria-label="Play FoodKindl video"
+      >
+        <Play
+          size={27}
+          fill="currentColor"
+        />
+      </button>
+
+
+      <div className="story-video-title">
+        See How FoodKindl Brings People Together
+      </div>
+
+    </div>
+
+  )}
+
+</div>
 </div>
       </section>
 
@@ -320,37 +527,129 @@ FoodKindl makes it easy for individuals and groups to discover like-minded peopl
         </div>
       </section> */}
 
-      <section className="content-section safety">
-        <div className="safety-intro">
-          <div>
-            <div className="eyebrow left">Safety first protocol</div>
-            <h2>Trust &amp; <span>Safety Engine</span></h2>
-          </div>
-          <p>
-            Connecting with new people should never compromise peace of mind.
-            FoodKindl uses layered, proactive safeguards to build a verified
-            and respectful cooking community.
-          </p>
-        </div>
+      <section className="content-section safety safety-premium">
 
-        <div className="feature-grid three">
-          <article className="feature-card">
-            <UserCheck className="green" />
-            <h3>Verified Profiles</h3>
-            <p>Photo ID can be required before joining private gatherings.</p>
-          </article>
-          {/* <article className="feature-card">
-            <ShieldCheck />
-            <h3>Women-Only Filters</h3>
-            <p>Hosts can restrict selected gatherings to verified female community members.</p>
-          </article>
-          <article className="feature-card">
-            <MessageCircle />
-            <h3>One-Click SOS Shield</h3>
-            <p>Emergency controls can share the active meetup location with trusted contacts.</p>
-          </article> */}
-        </div>
-      </section>
+  <div className="safety-intro">
+
+    <div>
+      <div className="eyebrow left">
+        SAFETY FIRST PROTOCOL
+      </div>
+
+      <h2>
+        Trust &amp; <span>Safety</span>
+      </h2>
+
+      <p className="safety-subtitle">
+        Built to help every FoodKindl connection feel
+        safer, more respectful, and more comfortable.
+      </p>
+    </div>
+
+
+    <p className="safety-description">
+      Connecting with new people should never compromise
+      peace of mind. FoodKindl uses layered safeguards,
+      verified profiles, and safety-first controls to
+      support a respectful food community.
+    </p>
+
+  </div>
+
+
+  <div className="safety-card-grid">
+
+
+    {/* VERIFIED PROFILES */}
+
+    <article className="safety-feature-card">
+
+      <div className="safety-card-number">
+        01
+      </div>
+
+      <div className="safety-icon verified">
+        <UserCheck size={28} />
+      </div>
+
+      <h3>
+        Verified Profiles
+      </h3>
+
+      <p>
+        Government-issued photo ID can be required before
+        members join selected private gatherings.
+      </p>
+
+      <div className="safety-card-footer">
+        Identity-backed trust
+      </div>
+
+    </article>
+
+
+    {/* WOMEN ONLY */}
+
+    <article className="safety-feature-card">
+
+      <div className="safety-card-number">
+        02
+      </div>
+
+      <div className="safety-icon women">
+        <ShieldCheck size={28} />
+      </div>
+
+      <h3>
+        Women-Only Preference
+      </h3>
+
+      <p>
+        Hosts can limit applicable gatherings to verified
+        female community members for added comfort and safety.
+      </p>
+
+      <div className="safety-card-footer">
+        Comfort-led participation
+      </div>
+
+    </article>
+
+
+    {/* SOS - COMING SOON */}
+
+    <article className="safety-feature-card safety-coming-soon">
+
+      <div className="safety-card-number">
+        03
+      </div>
+
+      <div className="safety-coming-badge">
+        Coming Soon
+      </div>
+
+      <div className="safety-icon sos">
+        <MessageCircle size={28} />
+      </div>
+
+      <h3>
+        One-Tap SOS
+      </h3>
+
+      <p>
+        A future emergency safety control designed to quickly
+        alert trusted contacts during an active gathering.
+      </p>
+
+      <div className="safety-card-footer">
+        Emergency support layer
+      </div>
+
+    </article>
+
+  </div>
+
+</section>
 
       {/* <section className="content-section products" id="products">
         <SectionHeading
@@ -461,57 +760,185 @@ FoodKindl makes it easy for individuals and groups to discover like-minded peopl
         </div>
       </section> */}
 
-      <section className="form-section contact-section" id="contact">
-        <div className="form-card">
-          <SectionHeading
-            eyebrow="Reach out"
-            title="Contact"
-            accent="Us"
-            description="Have a question, feedback, partnership idea, or community proposal? Send us a message."
-          />
+      
 
-          <form onSubmit={submitContact}>
-            <div className="form-row">
-              <input
-                placeholder="Your name"
-                value={contact.name}
-                onChange={(e) => setContact({ ...contact, name: e.target.value })}
-                required
-              />
-              <input
-                type="email"
-                placeholder="Email"
-                value={contact.email}
-                onChange={(e) => setContact({ ...contact, email: e.target.value })}
-                required
-              />
-            </div>
-            <input
-              placeholder="Subject"
-              value={contact.subject}
-              onChange={(e) => setContact({ ...contact, subject: e.target.value })}
-              required
-            />
-            <textarea
-              placeholder="Your message"
-              value={contact.message}
-              onChange={(e) => setContact({ ...contact, message: e.target.value })}
-              required
-            />
-            <button className="primary-button full">Send Message</button>
-            {contactMessage && <p className="form-message">{contactMessage}</p>}
-          </form>
-        </div>
-      </section>
+      <footer className="site-footer">
 
-      <footer>
+  {/* ================================
+      FOOTER LINKS
+  ================================= */}
+
+  <div className="footer-links-grid">
+
+    {/* COMPANY */}
+    <div className="footer-column">
+      <h4>Company</h4>
+
+      <Link to="/about">
+        About FoodKindl
+      </Link>
+
+      <Link to="/careers">
+        Careers
+      </Link>
+
+      <Link to="/contact">
+        Contact Us
+      </Link>
+    </div>
+
+
+    {/* COMMUNITY & SAFETY */}
+    <div className="footer-column">
+      <h4>Community &amp; Safety</h4>
+
+      <Link to="/community-guidelines">
+        Community Guidelines
+      </Link>
+
+      <Link to="/safety">
+        Safety Centre
+      </Link>
+    </div>
+
+
+    {/* LEGAL */}
+    <div className="footer-column">
+      <h4>Legal</h4>
+
+      <Link to="/privacy">
+        Privacy Policy
+      </Link>
+
+      <Link to="/terms">
+        Terms of Use
+      </Link>
+    </div>
+
+
+    {/* SOCIAL MEDIA
+        Keep this section hidden until you have
+        official FoodKindl social accounts.
+
+        When ready, uncomment and replace URLs.
+    */}
+
+    {/*
+    <div className="footer-column">
+      <h4>Follow FoodKindl</h4>
+
+      <a
+        href="YOUR_INSTAGRAM_URL"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="FoodKindl on Instagram"
+      >
+        Instagram
+      </a>
+
+      <a
+        href="YOUR_YOUTUBE_URL"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="FoodKindl on YouTube"
+      >
+        YouTube
+      </a>
+
+      <a
+        href="YOUR_LINKEDIN_URL"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="FoodKindl on LinkedIn"
+      >
+        LinkedIn
+      </a>
+
+      <a
+        href="YOUR_FACEBOOK_URL"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="FoodKindl on Facebook"
+      >
+        Facebook
+      </a>
+    </div>
+    */}
+
+  </div>
+
+
+  {/* ================================
+      DIVIDER
+  ================================= */}
+
+  <div className="footer-divider" />
+
+
+  {/* ================================
+      LOGO
+  ================================= */}
+
   <div className="footer-brand">
+
     <img
-      src="images/icon.png"
+      src="/images/icon.png"
       alt="FoodKindl"
       className="footer-logo-image"
     />
+
+    <p className="footer-tagline">
+      Where Food Connects People &amp; Planet
+    </p>
+
   </div>
+
+
+  {/* ================================
+      COPYRIGHT
+  ================================= */}
+
+  <div className="footer-bottom">
+
+    <p>
+      © 2026 KnightnKindle Pvt Ltd.
+      All rights reserved.
+    </p>
+
+    <p className="footer-ownership">
+      FoodKindl and its associated name, logo and
+      visual identity are owned by KnightnKindle Pvt Ltd.
+    </p>
+
+
+    {/* <div className="footer-bottom-links">
+
+      <Link to="/privacy">
+        Privacy Policy
+      </Link> */}
+
+      {/* <span>•</span>
+
+      <Link to="/terms">
+        Terms of Use
+      </Link>
+
+      <span>•</span> */}
+{/* 
+      <Link to="/community-guidelines">
+        Community Guidelines
+      </Link> */}
+
+      {/* <span>•</span> */}
+
+      {/* <Link to="/safety">
+        Safety Centre
+      </Link> */}
+
+    </div>
+
+  {/* </div> */}
+
 </footer>
     </main>
   );

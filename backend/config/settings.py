@@ -12,7 +12,9 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-load_dotenv(BASE_DIR / ".env")
+# override=True ensures local .env values override
+# environment variables already present on Windows.
+load_dotenv(BASE_DIR / ".env", override=True)
 
 
 # ============================================================
@@ -49,6 +51,8 @@ DEBUG = (
 ALLOWED_HOSTS = get_env_list(
     "DJANGO_ALLOWED_HOSTS",
     (
+        "127.0.0.1,"
+        "localhost,"
         "foodkindl-app-06aug2026.onrender.com,"
         ".onrender.com"
     ),
@@ -258,10 +262,7 @@ STORAGES = {
 
 
 # ============================================================
-# LEGACY MEDIA
-#
-# New media is stored in Netlify Blob.
-# Keep this only for old/local Django uploads.
+# MEDIA
 # ============================================================
 
 MEDIA_URL = "/media/"
@@ -273,11 +274,17 @@ MEDIA_ROOT = BASE_DIR / "media"
 # CORS
 # ============================================================
 
+
 CORS_ALLOWED_ORIGINS = get_env_list(
     "CORS_ALLOWED_ORIGINS",
-    "https://foodkindlapp.netlify.app",
+    (
+        "http://localhost:5173,"
+        "http://127.0.0.1:5173,"
+        "http://localhost:8888,"
+        "http://127.0.0.1:8888,"
+        "https://foodkindlapp.netlify.app"
+    ),
 )
-
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -286,9 +293,14 @@ CORS_ALLOW_CREDENTIALS = True
 # CSRF
 # ============================================================
 
+
 CSRF_TRUSTED_ORIGINS = get_env_list(
     "CSRF_TRUSTED_ORIGINS",
     (
+        "http://localhost:5173,"
+        "http://127.0.0.1:5173,"
+        "http://localhost:8888,"
+        "http://127.0.0.1:8888,"
         "https://foodkindlapp.netlify.app,"
         "https://foodkindl-app-06aug2026.onrender.com"
     ),
@@ -343,7 +355,7 @@ SIMPLE_JWT = {
 
 
 # ============================================================
-# HTTPS / RENDER SECURITY
+# HTTPS / SECURITY
 # ============================================================
 
 SECURE_PROXY_SSL_HEADER = (
@@ -351,19 +363,36 @@ SECURE_PROXY_SSL_HEADER = (
     "https",
 )
 
-
-SESSION_COOKIE_SECURE = True
-
-CSRF_COOKIE_SECURE = True
-
-
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
 X_FRAME_OPTIONS = "DENY"
 
 
-# Production only
-if not DEBUG:
+# ============================================================
+# LOCAL DEVELOPMENT
+# ============================================================
+
+if DEBUG:
+    # Django runserver uses HTTP, not HTTPS.
+    SECURE_SSL_REDIRECT = False
+
+    SESSION_COOKIE_SECURE = False
+
+    CSRF_COOKIE_SECURE = False
+
+    # Do not keep HSTS enabled locally.
+    SECURE_HSTS_SECONDS = 0
+
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+
+    SECURE_HSTS_PRELOAD = False
+
+
+# ============================================================
+# PRODUCTION / RENDER
+# ============================================================
+
+else:
     SECURE_SSL_REDIRECT = True
 
     SESSION_COOKIE_SECURE = True
@@ -455,3 +484,16 @@ LOGGING = {
             "INFO",
     },
 }
+
+
+# ============================================================
+# DEBUG CHECK
+# ============================================================
+
+if DEBUG:
+    print("======================================")
+    print("FOODKINDL LOCAL DEVELOPMENT")
+    print("DEBUG:", DEBUG)
+    print("SECURE_SSL_REDIRECT:", SECURE_SSL_REDIRECT)
+    print("ALLOWED_HOSTS:", ALLOWED_HOSTS)
+    print("======================================")

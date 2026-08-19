@@ -2,6 +2,7 @@ import {
   Navigate,
   Route,
   Routes,
+  useLocation,
 } from "react-router-dom";
 
 import Navbar from "./components/Navbar";
@@ -19,11 +20,31 @@ import MemberProfile from "./pages/MemberProfile";
 import Profile from "./pages/Profile";
 import VerificationRequired from "./pages/VerificationRequired";
 import AIKitchen from "./pages/AIKitchen";
-import { useAuth } from "./context/AuthContext";
+import Careers from "./pages/Careers";
+import Contact from "./pages/Contact";
 
+import {
+  useAuth,
+} from "./context/AuthContext";
 
-function Protected({ children }) {
-  const { user, loading } = useAuth();
+import CommunityGuidelines from "./pages/CommunityGuidelines";
+import SafetyCentre from "./pages/SafetyCentre";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfUse from "./pages/TermsOfUse";
+
+// ============================================================
+// PROTECTED ROUTE
+// ============================================================
+
+function Protected({
+  children,
+}) {
+
+  const {
+    user,
+    loading,
+  } = useAuth();
+
 
   if (loading) {
     return (
@@ -32,6 +53,7 @@ function Protected({ children }) {
       </main>
     );
   }
+
 
   return user
     ? children
@@ -44,8 +66,19 @@ function Protected({ children }) {
 }
 
 
-function VerifiedOnly({ children }) {
-  const { user, loading } = useAuth();
+// ============================================================
+// VERIFIED USERS ONLY
+// ============================================================
+
+function VerifiedOnly({
+  children,
+}) {
+
+  const {
+    user,
+    loading,
+  } = useAuth();
+
 
   if (loading) {
     return (
@@ -54,6 +87,7 @@ function VerifiedOnly({ children }) {
       </main>
     );
   }
+
 
   if (!user) {
     return (
@@ -64,10 +98,12 @@ function VerifiedOnly({ children }) {
     );
   }
 
+
   const approved =
     user?.profile?.is_verified === true &&
     user?.profile?.verification_status ===
       "approved";
+
 
   return approved
     ? children
@@ -80,33 +116,127 @@ function VerifiedOnly({ children }) {
 }
 
 
+// ============================================================
+// APP
+// ============================================================
+
 export default function App() {
-  const { user } = useAuth();
+
+  const {
+    user,
+  } = useAuth();
+
+
+  const location =
+    useLocation();
+
+
+  // ==========================================================
+  // VERIFIED STATUS
+  // ==========================================================
 
   const verified =
     user?.profile?.is_verified === true &&
     user?.profile?.verification_status ===
       "approved";
 
+
+  // ==========================================================
+  // HIDE MESSAGING ON PUBLIC PAGES
+  //
+  // Messaging will NOT appear on:
+  // - Landing Page
+  // - Login
+  // - Register
+  // - Careers
+  // - Contact Us
+  // ==========================================================
+
+  const hideMessaging = [
+    "/",
+    "/login",
+    "/register",
+    "/careers",
+    "/contact",
+    "/community-guidelines",
+    "/safety",
+    "/privacy",
+    "/terms",
+  ].includes(
+    location.pathname
+  );
+
+
   return (
     <>
+
+      {/* =====================================================
+          NAVBAR
+      ===================================================== */}
+
       <Navbar />
 
+
+      {/* =====================================================
+          ROUTES
+      ===================================================== */}
+
       <Routes>
-        <Route
-          path="/"
-          element={<LandingPage />}
-        />
 
-        <Route
-          path="/login"
-          element={<Login />}
-        />
 
-        <Route
-          path="/register"
-          element={<Register />}
-        />
+       {/* ===================================================
+    PUBLIC PAGES
+=================================================== */}
+
+<Route
+  path="/"
+  element={<LandingPage />}
+/>
+
+<Route
+  path="/careers"
+  element={<Careers />}
+/>
+
+<Route
+  path="/contact"
+  element={<Contact />}
+/>
+
+<Route
+  path="/community-guidelines"
+  element={<CommunityGuidelines />}
+/>
+
+<Route
+  path="/safety"
+  element={<SafetyCentre />}
+/>
+
+<Route
+  path="/privacy"
+  element={<PrivacyPolicy />}
+/>
+
+<Route
+  path="/terms"
+  element={<TermsOfUse />}
+/>
+
+<Route
+  path="/login"
+  element={<Login />}
+/>
+
+<Route
+  path="/register"
+  element={<Register />}
+/>
+
+
+        {/* ===================================================
+            DASHBOARD
+        =================================================== */}
 
         <Route
           path="/dashboard"
@@ -117,14 +247,24 @@ export default function App() {
           }
         />
 
+
+        {/* ===================================================
+            AI KITCHEN
+        =================================================== */}
+
         <Route
-        path="/ai-kitchen"
-        element={
-          <Protected>
-            <AIKitchen />
-          </Protected>
-        }
-      />
+          path="/ai-kitchen"
+          element={
+            <Protected>
+              <AIKitchen />
+            </Protected>
+          }
+        />
+
+
+        {/* ===================================================
+            VERIFICATION
+        =================================================== */}
 
         <Route
           path="/verification-required"
@@ -135,10 +275,13 @@ export default function App() {
           }
         />
 
-        {/* ---------------------------------
-            COMMUNIQ — LOGIN ONLY
-            NO GOVERNMENT ID VERIFICATION
-        ---------------------------------- */}
+
+        {/* ===================================================
+            COMMUNIQ
+
+            Login required.
+            Government ID verification NOT required.
+        =================================================== */}
 
         <Route
           path="/community"
@@ -149,6 +292,7 @@ export default function App() {
           }
         />
 
+
         <Route
           path="/community/post/:postId"
           element={
@@ -158,9 +302,12 @@ export default function App() {
           }
         />
 
-        {/* ---------------------------------
-            CONNECT — ID VERIFICATION REQUIRED
-        ---------------------------------- */}
+
+        {/* ===================================================
+            CONNECT
+
+            Government ID verification required.
+        =================================================== */}
 
         <Route
           path="/connect"
@@ -171,6 +318,7 @@ export default function App() {
           }
         />
 
+
         <Route
           path="/connect/member/:memberId"
           element={
@@ -179,6 +327,11 @@ export default function App() {
             </VerifiedOnly>
           }
         />
+
+
+        {/* ===================================================
+            FOOD
+        =================================================== */}
 
         <Route
           path="/food"
@@ -189,6 +342,11 @@ export default function App() {
           }
         />
 
+
+        {/* ===================================================
+            PROFILE
+        =================================================== */}
+
         <Route
           path="/profile"
           element={
@@ -197,6 +355,11 @@ export default function App() {
             </Protected>
           }
         />
+
+
+        {/* ===================================================
+            FALLBACK
+        =================================================== */}
 
         <Route
           path="*"
@@ -207,10 +370,32 @@ export default function App() {
             />
           }
         />
+
       </Routes>
 
-      {/* Private messaging remains verified-only */}
-      {verified && <MessagingDock />}
+
+      {/* =====================================================
+          PRIVATE MESSAGING
+
+          Messaging appears ONLY when:
+
+          1. User is verified
+          2. Page is NOT:
+             /
+             /login
+             /register
+             /careers
+             /contact
+      ===================================================== */}
+
+      {
+        verified &&
+        !hideMessaging &&
+        (
+          <MessagingDock />
+        )
+      }
+
     </>
   );
 }

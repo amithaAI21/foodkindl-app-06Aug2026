@@ -1,12 +1,14 @@
 import {
   LockKeyhole,
   MessageSquare,
+  RefreshCw,
   UserRound,
   UsersRound,
 } from "lucide-react";
 
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -135,6 +137,15 @@ export default function Dashboard() {
 
 
   // =========================================================
+  // REFRESH DASHBOARD
+  // =========================================================
+
+  function handleRefresh() {
+    window.location.reload();
+  }
+
+
+  // =========================================================
   // DASHBOARD CARDS
   // =========================================================
 
@@ -223,9 +234,35 @@ export default function Dashboard() {
           </div>
 
 
-          <h1>
-            Welcome, {displayName}
-          </h1>
+          {/* =================================================
+              TITLE + REFRESH
+          ================================================= */}
+
+          <div className="dashboard-title-row">
+
+            <h1>
+              Welcome, {displayName}
+            </h1>
+
+
+            <button
+              type="button"
+              className="dashboard-refresh-button"
+              onClick={handleRefresh}
+              title="Refresh dashboard"
+            >
+
+              <RefreshCw
+                size={18}
+              />
+
+              <span>
+                Refresh
+              </span>
+
+            </button>
+
+          </div>
 
 
           <p>

@@ -26,7 +26,7 @@ HF_TOKEN = os.environ.get(
 
 HF_MODEL = os.environ.get(
     "FOODKINDL_AI_MODEL",
-    "openai/gpt-oss-20b:fastest",
+    "openai/gpt-oss-20b",
 ).strip()
 
 
@@ -39,9 +39,8 @@ HF_API_URL = (
 # NORMALIZE LIST
 # ============================================================
 
-def normalize_list(
-    value,
-):
+def normalize_list(value):
+
     if not isinstance(
         value,
         list,
@@ -59,9 +58,8 @@ def normalize_list(
 # CLEAN AI JSON
 # ============================================================
 
-def clean_json_response(
-    text,
-):
+def clean_json_response(text):
+
     text = str(
         text or ""
     ).strip()
@@ -69,7 +67,7 @@ def clean_json_response(
     if not text:
         return ""
 
-    # Remove Markdown fences
+    # Remove opening Markdown fence
     text = re.sub(
         r"^```(?:json)?\s*",
         "",
@@ -77,6 +75,7 @@ def clean_json_response(
         flags=re.IGNORECASE,
     )
 
+    # Remove closing Markdown fence
     text = re.sub(
         r"\s*```$",
         "",
@@ -85,7 +84,7 @@ def clean_json_response(
 
     text = text.strip()
 
-    # Extract first JSON object
+    # Extract JSON object
     start = text.find("{")
     end = text.rfind("}")
 
@@ -105,9 +104,8 @@ def clean_json_response(
 # PROVIDER ERROR
 # ============================================================
 
-def get_provider_error(
-    response,
-):
+def get_provider_error(response):
+
     try:
         data = response.json()
 
@@ -128,6 +126,7 @@ def get_provider_error(
         error_value,
         dict,
     ):
+
         message = (
             error_value.get(
                 "message"
@@ -136,14 +135,13 @@ def get_provider_error(
         )
 
     else:
+
         message = str(
             error_value
             or response.text
             or "Unknown Hugging Face error."
         )
 
-    # Hugging Face sometimes returns
-    # more useful generation information.
     failed_generation = (
         data.get(
             "failed_generation"
@@ -151,9 +149,13 @@ def get_provider_error(
     )
 
     if failed_generation:
+
         print(
-            "FAILED GENERATION:",
-            failed_generation,
+            "\nFAILED GENERATION:"
+        )
+
+        print(
+            failed_generation
         )
 
     return message
@@ -164,23 +166,23 @@ def get_provider_error(
 # ============================================================
 
 def build_system_prompt():
+
     return """
 You are FoodKindl AI, a practical home-cooking assistant.
 
-Your job is to create accurate and realistic recipes.
+Create accurate, realistic and practical home-cooking recipes.
 
 Always create the exact dish requested by the user.
 
 Do not replace the requested dish with another dish.
 
-Return ONLY one valid JSON object.
+Return only one valid JSON object.
 
 Do not use Markdown.
-Do not use ```json.
-Do not add explanations before the JSON.
-Do not add explanations after the JSON.
 
-The JSON object must contain these keys:
+Do not add explanations before or after the JSON.
+
+The JSON must contain exactly these keys:
 
 description
 prep_time
@@ -196,6 +198,12 @@ ingredients must be a JSON array of strings.
 steps must be a JSON array of strings.
 
 All other values must be strings.
+
+Use double quotes for all JSON keys and string values.
+
+Do not use trailing commas.
+
+Make sure the JSON is complete before finishing.
 """.strip()
 
 
@@ -206,17 +214,18 @@ All other values must be strings.
 def build_user_prompt(
     dish_name,
 ):
+
     return f"""
-Create a home-cooking recipe for exactly:
+Create a realistic home-cooking recipe for exactly:
 
 {dish_name}
 
-Return ONLY this JSON structure:
+Return only this JSON structure:
 
 {{
   "description": "Short description of the dish",
-  "prep_time": "10 minutes",
-  "cook_time": "20 minutes",
+  "prep_time": "15 minutes",
+  "cook_time": "30 minutes",
   "servings": "4",
   "ingredients": [
     "Ingredient with quantity"
@@ -230,18 +239,15 @@ Return ONLY this JSON structure:
 
 Requirements:
 
-- The dish must remain exactly "{dish_name}".
-- Use realistic ingredients.
-- Include quantities.
-- Usually provide 6 to 12 ingredients.
-- Usually provide 4 to 8 cooking steps.
-- Keep each step concise.
-- Give practical home-cooking instructions.
+- Keep the dish exactly "{dish_name}".
+- Use ingredients appropriate for the requested cuisine or regional style.
+- Include realistic quantities.
+- Provide 6 to 15 ingredients.
+- Provide 4 to 10 concise cooking steps.
+- Keep the instructions practical for home cooking.
 - Include one useful cooking tip.
 - Include one relevant food-safety tip.
-- Do not include videos.
-- Do not include Markdown.
-- Return only valid JSON.
+- Return valid JSON only.
 """.strip()
 
 
@@ -252,7 +258,9 @@ Requirements:
 def generate_ai_text(
     dish_name,
 ):
+
     if not HF_TOKEN:
+
         raise RuntimeError(
             "HF_TOKEN is not configured."
         )
@@ -292,25 +300,19 @@ def generate_ai_text(
             0.2,
 
         "max_tokens":
-            800,
+            2000,
 
         "stream":
             False,
     }
 
-    # IMPORTANT:
-    #
-    # Do NOT send:
-    #
-    # response_format
-    # json_schema
-    # strict=True
-    #
-    # Some Hugging Face providers/models
-    # reject generations when strict JSON
-    # validation fails.
+
+    # ========================================================
+    # SEND REQUEST
+    # ========================================================
 
     try:
+
         response = requests.post(
             HF_API_URL,
             headers=headers,
@@ -319,68 +321,79 @@ def generate_ai_text(
         )
 
     except requests.Timeout as error:
+
         raise RuntimeError(
-            (
-                "FoodKindl AI request "
-                "timed out."
-            )
+            "FoodKindl AI request timed out."
         ) from error
 
     except requests.ConnectionError as error:
+
         raise RuntimeError(
             (
-                "FoodKindl could not "
-                "connect to Hugging Face."
+                "FoodKindl could not connect "
+                "to Hugging Face."
             )
         ) from error
 
     except requests.RequestException as error:
+
         raise RuntimeError(
             (
-                "FoodKindl AI request "
-                f"failed: {str(error)}"
+                "FoodKindl AI request failed: "
+                f"{str(error)}"
             )
         ) from error
 
+
     # ========================================================
-    # PROVIDER ERROR
+    # STATUS DEBUG
+    # ========================================================
+
+    print(
+        "\n======================================"
+    )
+
+    print(
+        "HUGGING FACE RESPONSE"
+    )
+
+    print(
+        "STATUS:",
+        response.status_code,
+    )
+
+    print(
+        "MODEL:",
+        HF_MODEL,
+    )
+
+    print(
+        "======================================"
+    )
+
+
+    # ========================================================
+    # PROVIDER ERRORS
     # ========================================================
 
     if response.status_code >= 400:
+
+        print(
+            "\nHUGGING FACE ERROR BODY:"
+        )
+
+        print(
+            response.text
+        )
+
         provider_error = (
             get_provider_error(
                 response
             )
         )
 
-        print(
-            "\n======================================"
-        )
-
-        print(
-            "HUGGING FACE ERROR"
-        )
-
-        print(
-            "STATUS:",
-            response.status_code,
-        )
-
-        print(
-            "MODEL:",
-            HF_MODEL,
-        )
-
-        print(
-            "BODY:",
-            response.text,
-        )
-
-        print(
-            "======================================\n"
-        )
-
         if response.status_code == 400:
+
             raise RuntimeError(
                 (
                     "Hugging Face rejected "
@@ -390,37 +403,38 @@ def generate_ai_text(
             )
 
         if response.status_code == 401:
+
             raise RuntimeError(
                 (
-                    "Hugging Face "
-                    "authentication failed. "
-                    "Check HF_TOKEN."
+                    "Hugging Face authentication "
+                    "failed. Check HF_TOKEN."
                 )
             )
 
         if response.status_code == 403:
+
             raise RuntimeError(
                 (
-                    "HF_TOKEN does not have "
-                    "permission to use "
-                    "Inference Providers."
+                    "HF_TOKEN does not have permission "
+                    "to use Inference Providers."
                 )
             )
 
         if response.status_code == 404:
+
             raise RuntimeError(
                 (
                     f"The model '{HF_MODEL}' "
-                    "is not available through "
-                    "the selected provider."
+                    "is not available."
                 )
             )
 
         if response.status_code == 429:
+
             raise RuntimeError(
                 (
-                    "Hugging Face rate limit "
-                    "reached. Try again shortly."
+                    "Hugging Face rate limit reached. "
+                    "Try again shortly."
                 )
             )
 
@@ -431,18 +445,21 @@ def generate_ai_text(
             )
         )
 
+
     # ========================================================
-    # RESPONSE JSON
+    # PARSE PROVIDER RESPONSE
     # ========================================================
 
     try:
+
         provider_data = (
             response.json()
         )
 
     except ValueError as error:
+
         print(
-            "INVALID HUGGING FACE RESPONSE:"
+            "\nINVALID HUGGING FACE RESPONSE:"
         )
 
         print(
@@ -456,18 +473,31 @@ def generate_ai_text(
             )
         ) from error
 
+
     # ========================================================
-    # EXTRACT CONTENT
+    # DEBUG FULL RESPONSE
+    # ========================================================
+
+    print(
+        "\nFULL HF RESPONSE:"
+    )
+
+    print(
+        provider_data
+    )
+
+
+    # ========================================================
+    # GET MESSAGE
     # ========================================================
 
     try:
-        content = (
+
+        message = (
             provider_data[
                 "choices"
             ][0][
                 "message"
-            ][
-                "content"
             ]
         )
 
@@ -476,8 +506,9 @@ def generate_ai_text(
         IndexError,
         TypeError,
     ) as error:
+
         print(
-            "UNEXPECTED HF RESPONSE:"
+            "\nUNEXPECTED HF RESPONSE:"
         )
 
         print(
@@ -491,13 +522,59 @@ def generate_ai_text(
             )
         ) from error
 
+
+    # ========================================================
+    # GET CONTENT
+    #
+    # GPT-OSS providers may return final output in different
+    # message fields.
+    # ========================================================
+
+    content = (
+        message.get("content")
+        or message.get("reasoning_content")
+        or message.get("reasoning")
+        or ""
+    )
+
+    content = str(
+        content
+    ).strip()
+
+
+    # ========================================================
+    # EMPTY CONTENT
+    # ========================================================
+
     if not content:
+
+        print(
+            "\nEMPTY HF MESSAGE:"
+        )
+
+        print(
+            message
+        )
+
+        print(
+            "\nFULL HF RESPONSE:"
+        )
+
+        print(
+            provider_data
+        )
+
         raise RuntimeError(
             (
-                "Hugging Face returned "
-                "an empty response."
+                "Hugging Face returned empty content. "
+                "Try again or use another model."
             )
         )
+
+
+    # ========================================================
+    # RAW OUTPUT
+    # ========================================================
 
     print(
         "\nRAW AI RESPONSE:"
@@ -517,6 +594,7 @@ def generate_ai_text(
 def parse_recipe_json(
     content,
 ):
+
     cleaned = (
         clean_json_response(
             content
@@ -532,16 +610,19 @@ def parse_recipe_json(
     )
 
     if not cleaned:
+
         raise RuntimeError(
             "AI returned an empty recipe."
         )
 
     try:
+
         data = json.loads(
             cleaned
         )
 
     except json.JSONDecodeError as error:
+
         print(
             "\nINVALID RECIPE JSON:"
         )
@@ -551,8 +632,11 @@ def parse_recipe_json(
         )
 
         print(
-            "JSON ERROR:",
-            str(error),
+            "\nJSON ERROR:"
+        )
+
+        print(
+            str(error)
         )
 
         raise RuntimeError(
@@ -566,6 +650,7 @@ def parse_recipe_json(
         data,
         dict,
     ):
+
         raise RuntimeError(
             (
                 "The AI returned an invalid "
@@ -583,9 +668,16 @@ def parse_recipe_json(
 def generate_recipe(
     dish_name,
 ):
+
     clean_dish = str(
         dish_name
     ).strip()
+
+    if not clean_dish:
+
+        raise RuntimeError(
+            "Dish name is required."
+        )
 
     raw_response = (
         generate_ai_text(
@@ -599,12 +691,22 @@ def generate_recipe(
         )
     )
 
+
+    # ========================================================
+    # INGREDIENTS
+    # ========================================================
+
     ingredients = normalize_list(
         data.get(
             "ingredients",
             [],
         )
     )
+
+
+    # ========================================================
+    # STEPS
+    # ========================================================
 
     steps = normalize_list(
         data.get(
@@ -613,7 +715,13 @@ def generate_recipe(
         )
     )
 
+
+    # ========================================================
+    # VALIDATE
+    # ========================================================
+
     if not ingredients:
+
         raise RuntimeError(
             (
                 "AI did not generate "
@@ -622,6 +730,7 @@ def generate_recipe(
         )
 
     if not steps:
+
         raise RuntimeError(
             (
                 "AI did not generate "
@@ -629,18 +738,32 @@ def generate_recipe(
             )
         )
 
-    # Ensure reasonable limits
+
+    # ========================================================
+    # LIMITS
+    # ========================================================
+
     ingredients = (
-        ingredients[:15]
+        ingredients[:20]
     )
 
     steps = (
-        steps[:10]
+        steps[:12]
     )
+
+
+    # ========================================================
+    # TITLE
+    # ========================================================
 
     title = (
         clean_dish.title()
     )
+
+
+    # ========================================================
+    # FINAL RESPONSE
+    # ========================================================
 
     return {
         "title":
@@ -712,14 +835,17 @@ def generate_recipe(
 class AIRecipeGenerateView(
     APIView
 ):
+
     permission_classes = [
         permissions.IsAuthenticated,
     ]
+
 
     def post(
         self,
         request,
     ):
+
         query = str(
             request.data.get(
                 "query",
@@ -727,11 +853,13 @@ class AIRecipeGenerateView(
             )
         ).strip()
 
+
         # ====================================================
         # VALIDATE
         # ====================================================
 
         if not query:
+
             return Response(
                 {
                     "detail":
@@ -746,14 +874,15 @@ class AIRecipeGenerateView(
                 ),
             )
 
+
         if len(query) > 100:
+
             return Response(
                 {
                     "detail":
                         (
-                            "Dish name must "
-                            "be 100 characters "
-                            "or fewer."
+                            "Dish name must be "
+                            "100 characters or fewer."
                         )
                 },
                 status=(
@@ -762,11 +891,13 @@ class AIRecipeGenerateView(
                 ),
             )
 
+
         # ====================================================
         # GENERATE
         # ====================================================
 
         try:
+
             print(
                 "\n======================================"
             )
@@ -794,14 +925,20 @@ class AIRecipeGenerateView(
                 "======================================"
             )
 
+
             recipe = generate_recipe(
                 query
             )
 
+
             print(
-                "Recipe generated successfully:",
-                recipe["title"],
+                "\nRECIPE GENERATED SUCCESSFULLY:"
             )
+
+            print(
+                recipe["title"]
+            )
+
 
             return Response(
                 {
@@ -816,7 +953,13 @@ class AIRecipeGenerateView(
                 ),
             )
 
+
+        # ====================================================
+        # ERROR
+        # ====================================================
+
         except Exception as error:
+
             traceback.print_exc()
 
             print(
