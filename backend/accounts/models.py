@@ -297,6 +297,22 @@ class Profile(models.Model):
     )
 
 
+    # ========================================================
+    # GOVERNMENT ID HTTPS URL
+    #
+    # Stores the HTTPS URL returned by Netlify.
+    #
+    # Example:
+    # https://foodkindlapp.netlify.app/.netlify/functions/...
+    # ========================================================
+
+    government_id_url = models.URLField(
+        max_length=1500,
+        blank=True,
+        default="",
+    )
+
+
     government_id_original_name = models.CharField(
         max_length=255,
         blank=True,
