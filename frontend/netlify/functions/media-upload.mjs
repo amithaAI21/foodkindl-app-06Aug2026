@@ -2,17 +2,24 @@ import {
   getStore,
 } from "@netlify/blobs";
 
+
 const PUBLIC_STORE =
   "foodkindl-media";
+
 
 const GOVERNMENT_ID_STORE =
   "foodkindl-government-ids";
 
 
+// ============================================================
+// JSON RESPONSE
+// ============================================================
+
 function jsonResponse(
   body,
   status = 200
 ) {
+
   return new Response(
     JSON.stringify(body),
     {
@@ -27,35 +34,52 @@ function jsonResponse(
 }
 
 
+// ============================================================
+// FILE EXTENSION
+// ============================================================
+
 function getExtension(
   filename
 ) {
+
   if (!filename) {
     return "bin";
   }
 
+
   const parts =
     filename.split(".");
+
 
   if (
     parts.length < 2
   ) {
+
     return "bin";
+
   }
+
 
   return (
     parts
       .pop()
-      ?.toLowerCase() ||
+      ?.toLowerCase()
+    ||
     "bin"
   );
 }
 
 
+// ============================================================
+// MAIN HANDLER
+// ============================================================
+
 export default async function handler(
   request
 ) {
+
   try {
+
     // ========================================================
     // METHOD
     // ========================================================
@@ -64,14 +88,17 @@ export default async function handler(
       request.method !==
       "POST"
     ) {
+
       return jsonResponse(
         {
           success: false,
+
           error:
             "Method not allowed.",
         },
         405
       );
+
     }
 
 
@@ -93,25 +120,31 @@ export default async function handler(
       String(
         formData.get(
           "upload_type"
-        ) || "public"
+        )
+        ||
+        "public"
       )
         .trim()
         .toLowerCase();
 
 
     if (
-      !file ||
+      !file
+      ||
       typeof file ===
         "string"
     ) {
+
       return jsonResponse(
         {
           success: false,
+
           error:
             "No file selected.",
         },
         400
       );
+
     }
 
 
@@ -124,6 +157,7 @@ export default async function handler(
     console.log(
       "UPLOAD:",
       {
+
         name:
           file.name,
 
@@ -136,8 +170,19 @@ export default async function handler(
         extension,
 
         uploadType,
+
       }
     );
+
+
+    // ========================================================
+    // REQUEST ORIGIN
+    // ========================================================
+
+    const origin =
+      new URL(
+        request.url
+      ).origin;
 
 
     // ========================================================
@@ -148,6 +193,7 @@ export default async function handler(
       uploadType ===
       "government_id"
     ) {
+
       const allowedGovernmentIdTypes = [
         "image/jpeg",
         "image/png",
@@ -179,10 +225,16 @@ export default async function handler(
           );
 
 
+      // ======================================================
+      // VALIDATE TYPE
+      // ======================================================
+
       if (
-        !validMimeType &&
+        !validMimeType
+        &&
         !validExtension
       ) {
+
         return jsonResponse(
           {
             success: false,
@@ -201,10 +253,14 @@ export default async function handler(
           },
           400
         );
+
       }
 
 
-      // 5 MB
+      // ======================================================
+      // MAXIMUM SIZE - 5 MB
+      // ======================================================
+
       const maxGovernmentIdSize =
         5 * 1024 * 1024;
 
@@ -213,6 +269,7 @@ export default async function handler(
         file.size >
         maxGovernmentIdSize
       ) {
+
         return jsonResponse(
           {
             success: false,
@@ -226,8 +283,28 @@ export default async function handler(
           },
           400
         );
+
       }
 
+
+      // ======================================================
+      // CONTENT TYPE
+      // ======================================================
+
+      const contentType =
+        file.type
+        ||
+        (
+          extension ===
+          "pdf"
+            ? "application/pdf"
+            : "application/octet-stream"
+        );
+
+
+      // ======================================================
+      // PRIVATE BLOB KEY
+      // ======================================================
 
       const key =
         (
@@ -241,6 +318,10 @@ export default async function handler(
         );
 
 
+      // ======================================================
+      // PRIVATE STORE
+      // ======================================================
+
       const store =
         getStore(
           GOVERNMENT_ID_STORE
@@ -252,17 +333,11 @@ export default async function handler(
         file,
         {
           metadata: {
+
             originalName:
               file.name,
 
-            contentType:
-              file.type ||
-              (
-                extension ===
-                "pdf"
-                  ? "application/pdf"
-                  : "application/octet-stream"
-              ),
+            contentType,
 
             size:
               String(
@@ -275,12 +350,63 @@ export default async function handler(
 
             category:
               "government_id",
+
+            private:
+              "true",
+
           },
         }
       );
 
 
-      // Private: no public URL
+      // ======================================================
+      // PRIVATE HTTPS URL
+      //
+      // IMPORTANT:
+      // This points to a SEPARATE protected Netlify function.
+      //
+      // Do NOT use the public /media function for Government ID.
+      // ======================================================
+
+      const governmentIdUrl =
+        (
+          `${origin}`
+          +
+          `/.netlify/functions/government-id`
+          +
+          `?key=${encodeURIComponent(
+            key
+          )}`
+        );
+
+
+      console.log(
+        "GOVERNMENT ID UPLOAD SUCCESS:",
+        {
+          key,
+
+          url:
+            governmentIdUrl,
+
+          filename:
+            file.name,
+
+          contentType,
+        }
+      );
+
+
+      // ======================================================
+      // GOVERNMENT ID RESPONSE
+      //
+      // Profile.jsx now receives:
+      //
+      // uploadedGovernmentId.key
+      // uploadedGovernmentId.url
+      // uploadedGovernmentId.filename
+      // uploadedGovernmentId.contentType
+      // ======================================================
+
       return jsonResponse(
         {
           success: true,
@@ -290,23 +416,23 @@ export default async function handler(
 
           key,
 
+          url:
+            governmentIdUrl,
+
           filename:
             file.name,
 
-          contentType:
-            file.type ||
-            (
-              extension ===
-              "pdf"
-                ? "application/pdf"
-                : "application/octet-stream"
-            ),
+          contentType,
 
           size:
             file.size,
+
+          category:
+            "government_id",
         },
         200
       );
+
     }
 
 
@@ -315,6 +441,7 @@ export default async function handler(
     // ========================================================
 
     const allowedPublicTypes = [
+
       "image/jpeg",
       "image/png",
       "image/webp",
@@ -325,10 +452,12 @@ export default async function handler(
       "video/quicktime",
 
       "application/pdf",
+
     ];
 
 
     const allowedPublicExtensions = [
+
       "jpg",
       "jpeg",
       "png",
@@ -340,6 +469,7 @@ export default async function handler(
       "mov",
 
       "pdf",
+
     ];
 
 
@@ -357,10 +487,16 @@ export default async function handler(
         );
 
 
+    // ========================================================
+    // VALIDATE PUBLIC FILE TYPE
+    // ========================================================
+
     if (
-      !validMimeType &&
+      !validMimeType
+      &&
       !validExtension
     ) {
+
       return jsonResponse(
         {
           success: false,
@@ -381,6 +517,7 @@ export default async function handler(
         },
         400
       );
+
     }
 
 
@@ -441,17 +578,25 @@ export default async function handler(
     let maxSize;
 
 
-    if (isVideo) {
+    if (
+      isVideo
+    ) {
+
       maxSize =
         25 * 1024 * 1024;
 
-    } else if (isPdf) {
+    } else if (
+      isPdf
+    ) {
+
       maxSize =
         10 * 1024 * 1024;
 
     } else {
+
       maxSize =
         10 * 1024 * 1024;
+
     }
 
 
@@ -459,11 +604,13 @@ export default async function handler(
       file.size >
       maxSize
     ) {
+
       return jsonResponse(
         {
           success: false,
 
           error:
+
             isVideo
               ? (
                   "Video must be "
@@ -486,6 +633,7 @@ export default async function handler(
         },
         400
       );
+
     }
 
 
@@ -497,17 +645,27 @@ export default async function handler(
       "files";
 
 
-    if (isVideo) {
+    if (
+      isVideo
+    ) {
+
       folder =
         "videos";
 
-    } else if (isImage) {
+    } else if (
+      isImage
+    ) {
+
       folder =
         "images";
 
-    } else if (isPdf) {
+    } else if (
+      isPdf
+    ) {
+
       folder =
         "documents";
+
     }
 
 
@@ -537,21 +695,26 @@ export default async function handler(
       );
 
 
+    const contentType =
+      file.type
+      ||
+      (
+        isPdf
+          ? "application/pdf"
+          : "application/octet-stream"
+      );
+
+
     await store.set(
       key,
       file,
       {
         metadata: {
+
           originalName:
             file.name,
 
-          contentType:
-            file.type ||
-            (
-              isPdf
-                ? "application/pdf"
-                : "application/octet-stream"
-            ),
+          contentType,
 
           size:
             String(
@@ -563,6 +726,7 @@ export default async function handler(
               .toISOString(),
 
           category:
+
             isVideo
               ? "video"
 
@@ -573,6 +737,7 @@ export default async function handler(
                   ? "pdf"
 
                   : "file",
+
         },
       }
     );
@@ -581,12 +746,6 @@ export default async function handler(
     // ========================================================
     // PUBLIC URL
     // ========================================================
-
-    const origin =
-      new URL(
-        request.url
-      ).origin;
-
 
     const mediaUrl =
       (
@@ -601,7 +760,7 @@ export default async function handler(
 
 
     // ========================================================
-    // RESPONSE
+    // PUBLIC RESPONSE
     // ========================================================
 
     return jsonResponse(
@@ -619,18 +778,13 @@ export default async function handler(
         filename:
           file.name,
 
-        contentType:
-          file.type ||
-          (
-            isPdf
-              ? "application/pdf"
-              : "application/octet-stream"
-          ),
+        contentType,
 
         size:
           file.size,
 
         category:
+
           isVideo
             ? "video"
 
@@ -646,7 +800,10 @@ export default async function handler(
     );
 
 
-  } catch (error) {
+  } catch (
+    error
+  ) {
+
     console.error(
       "NETLIFY BLOB UPLOAD ERROR:",
       error
@@ -658,7 +815,8 @@ export default async function handler(
         success: false,
 
         error:
-          error?.message ||
+          error?.message
+          ||
           (
             "Unable to upload "
             +
@@ -667,5 +825,6 @@ export default async function handler(
       },
       500
     );
+
   }
 }
