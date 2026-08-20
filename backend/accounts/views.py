@@ -331,15 +331,9 @@ class VerificationStatusView(
 
 
         government_id_uploaded = bool(
-
-            profile
-            .government_id_blob_key
-
-            or
-
-            profile
-            .government_id
-
+            profile.government_id_blob_key
+            or profile.government_id_url
+            or profile.government_id
         )
 
 
@@ -350,31 +344,25 @@ class VerificationStatusView(
                     government_id_uploaded,
 
                 "government_id_type":
-                    profile
-                    .government_id_type,
+                    profile.government_id_type,
 
                 "verification_status":
-                    profile
-                    .verification_status,
+                    profile.verification_status,
 
                 "is_verified":
-                    profile
-                    .is_verified,
+                    profile.is_verified,
 
                 "rejection_reason":
-                    profile
-                    .rejection_reason,
+                    profile.rejection_reason,
 
                 "verified_at":
-                    profile
-                    .verified_at,
+                    profile.verified_at,
 
             },
 
             status=status.HTTP_200_OK,
 
         )
-
 
 # ============================================================
 # BLOCKED MEMBERS LIST
