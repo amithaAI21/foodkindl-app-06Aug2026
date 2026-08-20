@@ -13,9 +13,11 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load local .env file.
-# Render environment variables will be available through
-# os.environ in production.
-load_dotenv(BASE_DIR / ".env", override=True)
+# Render environment variables should NOT be overridden.
+load_dotenv(
+    BASE_DIR / ".env",
+    override=False,
+)
 
 
 # ============================================================
@@ -38,7 +40,6 @@ def get_env_list(name, default=""):
     if value is None:
         value = default
 
-    # If the default/value is already a list or tuple
     if isinstance(value, (list, tuple)):
         return [
             str(item).strip().rstrip("/")
@@ -46,7 +47,6 @@ def get_env_list(name, default=""):
             if str(item).strip()
         ]
 
-    # Environment variables normally arrive as strings
     return [
         item.strip().rstrip("/")
         for item in str(value).split(",")
@@ -68,7 +68,10 @@ FAST2SMS_API_KEY = os.environ.get(
 # SECURITY
 # ============================================================
 
-SECRET_KEY = os.environ["SECRET_KEY"]
+SECRET_KEY = os.environ.get(
+    "SECRET_KEY",
+    "django-insecure-local-development-key",
+)
 
 DEBUG = (
     os.environ.get(
@@ -86,7 +89,7 @@ ALLOWED_HOSTS = get_env_list(
     (
         "127.0.0.1",
         "localhost",
-        "foodkindl-app-06aug2026.onrender.com",
+        "foodkindlapp-nscw.onrender.com",
         ".onrender.com",
     ),
 )
@@ -186,29 +189,51 @@ TEMPLATES = [
 
 
 # ============================================================
-# DATABASE - POSTGRESQL ONLY
+# DATABASE
 #
-# Render:
-# Set DATABASE_URL to the Internal Database URL provided by
-# your Render PostgreSQL database.
+# Production / Render:
+# PostgreSQL through DATABASE_URL
+#
+# Local development:
+# SQLite fallback
 # ============================================================
 
-DATABASE_URL = os.environ.get("DATABASE_URL")
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    "",
+).strip()
 
-if not DATABASE_URL:
-    raise RuntimeError(
-        "DATABASE_URL environment variable is not set. "
-        "Add your PostgreSQL connection URL to the environment."
-    )
 
-DATABASES = {
-    "default": dj_database_url.parse(
-        DATABASE_URL,
-        conn_max_age=600,
-        conn_health_checks=True,
-        ssl_require=not DEBUG,
-    )
-}
+if DATABASE_URL:
+
+    # ========================================================
+    # RENDER / PRODUCTION - POSTGRESQL
+    # ========================================================
+
+    DATABASES = {
+        "default": dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,
+            conn_health_checks=True,
+            ssl_require=not DEBUG,
+        )
+    }
+
+else:
+
+    # ========================================================
+    # LOCAL DEVELOPMENT - SQLITE
+    # ========================================================
+
+    DATABASES = {
+        "default": {
+            "ENGINE":
+                "django.db.backends.sqlite3",
+
+            "NAME":
+                BASE_DIR / "db.sqlite3",
+        }
+    }
 
 
 # ============================================================
@@ -323,7 +348,7 @@ CSRF_TRUSTED_ORIGINS = get_env_list(
         "http://localhost:8888",
         "http://127.0.0.1:8888",
         "https://foodkindlapp.netlify.app",
-        "https://foodkindl-app-06aug2026.onrender.com",
+        "https://foodkindlapp-nscw.onrender.com",
         "https://foodkindl.org",
         "https://www.foodkindl.org",
     ),
@@ -396,14 +421,13 @@ X_FRAME_OPTIONS = "DENY"
 # ============================================================
 
 if DEBUG:
-    # Django runserver uses HTTP, not HTTPS.
+
     SECURE_SSL_REDIRECT = False
 
     SESSION_COOKIE_SECURE = False
 
     CSRF_COOKIE_SECURE = False
 
-    # Do not keep HSTS enabled locally.
     SECURE_HSTS_SECONDS = 0
 
     SECURE_HSTS_INCLUDE_SUBDOMAINS = False
@@ -416,6 +440,7 @@ if DEBUG:
 # ============================================================
 
 else:
+
     SECURE_SSL_REDIRECT = True
 
     SESSION_COOKIE_SECURE = True
@@ -514,23 +539,49 @@ LOGGING = {
 # ============================================================
 
 if DEBUG:
-    print("======================================")
-    print("FOODKINDL LOCAL DEVELOPMENT")
-    print("DEBUG:", DEBUG)
+
+    print(
+        "======================================"
+    )
+
+    print(
+        "FOODKINDL LOCAL DEVELOPMENT"
+    )
+
+    print(
+        "DEBUG:",
+        DEBUG,
+    )
+
+    print(
+        "DATABASE:",
+        (
+            "PostgreSQL"
+            if DATABASE_URL
+            else "SQLite"
+        ),
+    )
+
     print(
         "SECURE_SSL_REDIRECT:",
         SECURE_SSL_REDIRECT,
     )
+
     print(
         "ALLOWED_HOSTS:",
         ALLOWED_HOSTS,
     )
+
     print(
         "CORS_ALLOWED_ORIGINS:",
         CORS_ALLOWED_ORIGINS,
     )
+
     print(
         "CSRF_TRUSTED_ORIGINS:",
         CSRF_TRUSTED_ORIGINS,
     )
-    print("====================")
+
+    print(
+        "======================================"
+    )
