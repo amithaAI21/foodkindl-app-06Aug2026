@@ -21,6 +21,9 @@ class ProfileSerializer(
         serializers.SerializerMethodField()
     )
 
+    government_id_url = (
+        serializers.SerializerMethodField()
+    )
 
     blocked_users_count = (
         serializers.SerializerMethodField()
@@ -81,14 +84,17 @@ class ProfileSerializer(
 
 
             # =================================================
-            # LEGACY GOVERNMENT ID
+            # GOVERNMENT ID
             # =================================================
 
             "government_id",
 
+            # Absolute HTTPS URL returned by API
+            "government_id_url",
+
 
             # =================================================
-            # NETLIFY GOVERNMENT ID
+            # PRIVATE NETLIFY GOVERNMENT ID
             # =================================================
 
             "government_id_blob_key",
@@ -107,13 +113,14 @@ class ProfileSerializer(
             "is_verified",
             "verified_at",
             "rejection_reason",
-
         )
 
 
         read_only_fields = (
 
             "government_id_uploaded",
+
+            "government_id_url",
 
             "blocked_users_count",
 
@@ -124,7 +131,6 @@ class ProfileSerializer(
             "verified_at",
 
             "rejection_reason",
-
         )
 
 
@@ -196,7 +202,7 @@ class ProfileSerializer(
 
 
             # =================================================
-            # LEGACY GOVERNMENT ID
+            # GOVERNMENT ID
             # =================================================
 
             "government_id": {
@@ -207,7 +213,7 @@ class ProfileSerializer(
 
 
             # =================================================
-            # NETLIFY GOVERNMENT ID
+            # PRIVATE NETLIFY GOVERNMENT ID
             # =================================================
 
             "government_id_blob_key": {
@@ -232,7 +238,6 @@ class ProfileSerializer(
                 "required": False,
                 "allow_blank": True,
             },
-
         }
 
 
@@ -263,6 +268,159 @@ class ProfileSerializer(
             obj.government_id_blob_key
             or obj.government_id
         )
+
+
+    # ========================================================
+    # GOVERNMENT ID HTTPS URL
+    # ========================================================
+
+    def get_government_id_url(
+        self,
+        obj,
+    ):
+
+        request = self.context.get(
+            "request"
+        )
+
+
+        # Government ID is private.
+        # Do not expose without authenticated user.
+
+        if (
+            not request
+            or not request.user
+            or not request.user.is_authenticated
+        ):
+            return None
+
+
+        # Only owner or admin can see the ID URL.
+
+        is_owner = (
+            obj.user_id ==
+            request.user.id
+        )
+
+        is_admin = (
+            request.user.is_staff
+            or request.user.is_superuser
+        )
+
+
+        if (
+            not is_owner
+            and not is_admin
+        ):
+            return None
+
+
+        # ====================================================
+        # LEGACY DJANGO FILE
+        # ====================================================
+
+        if obj.government_id:
+
+            try:
+                file_url = (
+                    obj.government_id.url
+                )
+
+            except (
+                ValueError,
+                AttributeError,
+            ):
+                return None
+
+
+            # Already HTTPS
+
+            if file_url.startswith(
+                "https://"
+            ):
+                return file_url
+
+
+            # Build full URL if it is:
+            #
+            # /media/private/government_ids/id.pdf
+
+            if file_url.startswith(
+                "/"
+            ):
+
+                full_url = (
+                    request.build_absolute_uri(
+                        file_url
+                    )
+                )
+
+
+                # Render sometimes receives proxy
+                # request internally as HTTP.
+                # Force HTTPS for Render production.
+
+                if (
+                    request.get_host()
+                    .endswith(
+                        ".onrender.com"
+                    )
+                    and
+                    full_url.startswith(
+                        "http://"
+                    )
+                ):
+
+                    full_url = (
+                        "https://"
+                        +
+                        full_url[
+                            len("http://"):
+                        ]
+                    )
+
+
+                return full_url
+
+
+            # If an HTTP absolute URL somehow exists,
+            # convert Render URL to HTTPS.
+
+            if file_url.startswith(
+                "http://"
+            ):
+
+                if (
+                    ".onrender.com"
+                    in file_url
+                ):
+
+                    return (
+                        "https://"
+                        +
+                        file_url[
+                            len("http://"):
+                        ]
+                    )
+
+
+                return file_url
+
+
+            return file_url
+
+
+        # ====================================================
+        # NETLIFY PRIVATE BLOB
+        # ====================================================
+        #
+        # Do NOT make government_id_blob_key public.
+        #
+        # Private Netlify Blob needs an authenticated endpoint
+        # or signed/private retrieval URL.
+        # ====================================================
+
+        return None
 
 
     # ========================================================
@@ -459,7 +617,10 @@ class ProfileSerializer(
                 raise serializers.ValidationError(
                     {
                         "government_id_type":
-                            "Select the type of Government ID."
+                            (
+                                "Select the type "
+                                "of Government ID."
+                            )
                     }
                 )
 
@@ -492,7 +653,7 @@ class ProfileSerializer(
         )
 
 
-        # Save all supplied fields
+        # Save supplied fields
 
         for (
             field,
@@ -506,7 +667,8 @@ class ProfileSerializer(
             )
 
 
-        # New ID requires verification again
+        # New Government ID requires
+        # verification again.
 
         if (
             new_government_id
@@ -530,8 +692,6 @@ class ProfileSerializer(
 
 
         return instance
-
-
 # ============================================================
 # USER SERIALIZER
 # ============================================================

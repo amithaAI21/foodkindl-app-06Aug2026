@@ -1,534 +1,269 @@
-from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
-from django.db import transaction
-
+from django.db.models import Q
 from rest_framework import serializers
+from rest_framework.permissions import BasePermission
 
-from rest_framework_simplejwt.tokens import RefreshToken
+from accounts.serializers import (
+    ProfileSerializer,
+    UserSerializer,
+)
 
-from .models import Profile
+from .models import (
+    Connection,
+    Conversation,
+    DirectMessage,
+    FoodListing,
+    Invitation,
+    Post,
+    PostComment,
+    SharedPost,
+)
 
 
-# ============================================================
-# PROFILE SERIALIZER
-# ============================================================
-
-class ProfileSerializer(
-    serializers.ModelSerializer
-):
-
-    government_id_uploaded = (
-        serializers.SerializerMethodField()
-    )
-
-    government_id_url = (
-        serializers.SerializerMethodField()
-    )
-
-    blocked_users_count = (
-        serializers.SerializerMethodField()
-    )
-
+class PostCommentSerializer(serializers.ModelSerializer):
+    author = UserSerializer(read_only=True)
 
     class Meta:
-
-        model = Profile
-
+        model = PostComment
         fields = (
-
-            # =================================================
-            # PROFILE
-            # =================================================
-
-            "bio",
-            "city",
-            "locality",
-            "postcode",
-            "college_workplace",
-            "role",
-            "interests",
-            "gender",
-            "dietary_preference",
-            "women_only_mode",
-
-
-            # =================================================
-            # SAFETY
-            # =================================================
-
-            "blocked_users_count",
-
-
-            # =================================================
-            # LEGACY PROFILE PHOTOS
-            # =================================================
-
-            "profile_image_1",
-            "profile_image_2",
-            "profile_image_3",
-
-
-            # =================================================
-            # NETLIFY PROFILE PHOTOS
-            # =================================================
-
-            "profile_image_1_blob_key",
-            "profile_image_1_url",
-
-            "profile_image_2_blob_key",
-            "profile_image_2_url",
-
-            "profile_image_3_blob_key",
-            "profile_image_3_url",
-
-
-            # =================================================
-            # GOVERNMENT ID
-            # =================================================
-
-            "government_id",
-
-            # HTTPS URL returned by API.
-            # Only owner/admin can receive this value.
-            "government_id_url",
-
-
-            # =================================================
-            # PRIVATE NETLIFY GOVERNMENT ID
-            # =================================================
-
-            "government_id_blob_key",
-            "government_id_original_name",
-            "government_id_content_type",
-
-            "government_id_uploaded",
-            "government_id_type",
-
-
-            # =================================================
-            # VERIFICATION
-            # =================================================
-
-            "verification_status",
-            "is_verified",
-            "verified_at",
-            "rejection_reason",
+            "id",
+            "author",
+            "text",
+            "created_at",
+        )
+        read_only_fields = (
+            "id",
+            "author",
+            "created_at",
         )
 
+    def validate_text(self, value):
+        clean_text = value.strip()
+
+        if not clean_text:
+            raise serializers.ValidationError(
+                "Comment cannot be empty."
+            )
+
+        if len(clean_text) > 1000:
+            raise serializers.ValidationError(
+                "Comment cannot exceed 1,000 characters."
+            )
+
+        return clean_text
+
+
+class PostSerializer(serializers.ModelSerializer):
+    author = UserSerializer(read_only=True)
+
+    reaction_count = serializers.SerializerMethodField()
+    reaction_summary = serializers.SerializerMethodField()
+    my_reaction = serializers.SerializerMethodField()
+
+    comment_count = serializers.SerializerMethodField()
+
+    comments = PostCommentSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    unique_view_count = serializers.SerializerMethodField()
+    community_share_count = serializers.SerializerMethodField()
+    saved_by_me = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Post
+        fields = (
+            "id",
+            "author",
+            "post_type",
+            "title",
+            "text",
+            "image",
+            "video",
+            "image_blob_key",
+            "image_url",
+            "image_original_name",
+            "image_content_type",
+            "video_blob_key",
+            "video_url",
+            "video_original_name",
+            "video_content_type",
+            "location_name",
+            "latitude",
+            "longitude",
+            "reaction_count",
+            "reaction_summary",
+            "my_reaction",
+            "comment_count",
+            "comments",
+            "unique_view_count",
+            "share_count",
+            "community_share_count",
+            "saved_by_me",
+            "created_at",
+        )
 
         read_only_fields = (
-
-            "government_id_uploaded",
-
-            "government_id_url",
-
-            "blocked_users_count",
-
-            "verification_status",
-
-            "is_verified",
-
-            "verified_at",
-
-            "rejection_reason",
+            "id",
+            "author",
+            "reaction_count",
+            "reaction_summary",
+            "my_reaction",
+            "comment_count",
+            "comments",
+            "unique_view_count",
+            "share_count",
+            "community_share_count",
+            "saved_by_me",
+            "created_at",
         )
 
-
         extra_kwargs = {
-
-            # =================================================
-            # LEGACY PROFILE PHOTOS
-            # =================================================
-
-            "profile_image_1": {
+            "post_type": {
+                "required": False,
+            },
+            "title": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "text": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "image": {
                 "required": False,
                 "allow_null": True,
             },
-
-            "profile_image_2": {
+            "video": {
                 "required": False,
                 "allow_null": True,
             },
-
-            "profile_image_3": {
+            "image_blob_key": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "image_url": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "image_original_name": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "image_content_type": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "video_blob_key": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "video_url": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "video_original_name": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "video_content_type": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "location_name": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "latitude": {
                 "required": False,
                 "allow_null": True,
             },
-
-
-            # =================================================
-            # BLOB PROFILE PHOTO 1
-            # =================================================
-
-            "profile_image_1_blob_key": {
-                "required": False,
-                "allow_blank": True,
-            },
-
-            "profile_image_1_url": {
-                "required": False,
-                "allow_blank": True,
-            },
-
-
-            # =================================================
-            # BLOB PROFILE PHOTO 2
-            # =================================================
-
-            "profile_image_2_blob_key": {
-                "required": False,
-                "allow_blank": True,
-            },
-
-            "profile_image_2_url": {
-                "required": False,
-                "allow_blank": True,
-            },
-
-
-            # =================================================
-            # BLOB PROFILE PHOTO 3
-            # =================================================
-
-            "profile_image_3_blob_key": {
-                "required": False,
-                "allow_blank": True,
-            },
-
-            "profile_image_3_url": {
-                "required": False,
-                "allow_blank": True,
-            },
-
-
-            # =================================================
-            # LEGACY GOVERNMENT ID
-            # =================================================
-
-            "government_id": {
-                "write_only": True,
+            "longitude": {
                 "required": False,
                 "allow_null": True,
-            },
-
-
-            # =================================================
-            # PRIVATE NETLIFY GOVERNMENT ID
-            # =================================================
-
-            "government_id_blob_key": {
-                "write_only": True,
-                "required": False,
-                "allow_blank": True,
-            },
-
-            "government_id_original_name": {
-                "write_only": True,
-                "required": False,
-                "allow_blank": True,
-            },
-
-            "government_id_content_type": {
-                "write_only": True,
-                "required": False,
-                "allow_blank": True,
-            },
-
-            "government_id_type": {
-                "required": False,
-                "allow_blank": True,
             },
         }
 
+    def get_reaction_count(self, obj):
+        return obj.reactions.count()
 
-    # ========================================================
-    # BLOCKED COUNT
-    # ========================================================
+    def get_reaction_summary(self, obj):
+        summary = {
+            "like": 0,
+            "love": 0,
+            "haha": 0,
+            "wow": 0,
+            "sad": 0,
+            "angry": 0,
+        }
 
-    def get_blocked_users_count(
-        self,
-        obj,
-    ):
+        for reaction in obj.reactions.all():
+            reaction_type = reaction.reaction_type
 
-        return (
-            obj.blocked_users.count()
-        )
+            if reaction_type in summary:
+                summary[reaction_type] += 1
 
+        return summary
 
-    # ========================================================
-    # GOVERNMENT ID UPLOADED
-    # ========================================================
-
-    def get_government_id_uploaded(
-        self,
-        obj,
-    ):
-
-        return bool(
-            obj.government_id_blob_key
-            or obj.government_id
-        )
-
-
-    # ========================================================
-    # GOVERNMENT ID HTTPS URL
-    #
-    # IMPORTANT:
-    # Government IDs are sensitive.
-    #
-    # Only:
-    # 1. The profile owner
-    # 2. Staff
-    # 3. Superuser
-    #
-    # can receive this URL.
-    # ========================================================
-
-    def get_government_id_url(
-        self,
-        obj,
-    ):
-
-        request = (
-            self.context.get(
-                "request"
-            )
-        )
-
-        if not request:
-            return None
-
-
-        current_user = (
-            getattr(
-                request,
-                "user",
-                None,
-            )
-        )
-
+    def get_my_reaction(self, obj):
+        request = self.context.get("request")
 
         if (
-            not current_user
-            or not current_user.is_authenticated
+            not request
+            or not request.user
+            or not request.user.is_authenticated
         ):
             return None
 
+        reaction = obj.reactions.filter(
+            user=request.user
+        ).first()
 
-        # ----------------------------------------------------
-        # SECURITY CHECK
-        # ----------------------------------------------------
-
-        is_owner = (
-            obj.user_id ==
-            current_user.id
-        )
-
-        is_admin = (
-            current_user.is_staff
-            or current_user.is_superuser
-        )
-
-
-        if (
-            not is_owner
-            and not is_admin
-        ):
-            return None
-
-
-        # ----------------------------------------------------
-        # LEGACY DJANGO FILE
-        # ----------------------------------------------------
-
-        if obj.government_id:
-
-            try:
-
-                file_url = (
-                    obj.government_id.url
-                )
-
-            except (
-                ValueError,
-                AttributeError,
-            ):
-
-                return None
-
-
-            # Already absolute HTTPS
-            if file_url.startswith(
-                "https://"
-            ):
-
-                return file_url
-
-
-            # Already absolute HTTP
-            if file_url.startswith(
-                "http://"
-            ):
-
-                # On Render production,
-                # force HTTPS.
-                host = (
-                    request.get_host()
-                )
-
-                if (
-                    host.endswith(
-                        ".onrender.com"
-                    )
-                    or host.endswith(
-                        "foodkindl.org"
-                    )
-                ):
-
-                    return (
-                        "https://"
-                        +
-                        file_url[
-                            len(
-                                "http://"
-                            ):
-                        ]
-                    )
-
-
-                return file_url
-
-
-            # Relative Django media URL:
-            #
-            # /media/government_ids/file.jpg
-            #
-            # becomes:
-            #
-            # https://foodkindlapp-nscw.onrender.com/
-            # media/government_ids/file.jpg
-
-            absolute_url = (
-                request
-                .build_absolute_uri(
-                    file_url
-                )
-            )
-
-
-            # Extra Render HTTPS protection
-            if (
-                request
-                .get_host()
-                .endswith(
-                    ".onrender.com"
-                )
-                and absolute_url.startswith(
-                    "http://"
-                )
-            ):
-
-                absolute_url = (
-                    "https://"
-                    +
-                    absolute_url[
-                        len(
-                            "http://"
-                        ):
-                    ]
-                )
-
-
-            return absolute_url
-
-
-        # ----------------------------------------------------
-        # NETLIFY PRIVATE BLOB
-        # ----------------------------------------------------
-        #
-        # We intentionally DO NOT construct a public URL from
-        # government_id_blob_key.
-        #
-        # Private Government IDs should be retrieved through
-        # an authenticated backend/Netlify function.
-        # ----------------------------------------------------
+        if reaction:
+            return reaction.reaction_type
 
         return None
 
+    def get_comment_count(self, obj):
+        return obj.comments.count()
 
-    # ========================================================
-    # PROFILE IMAGE VALIDATION
-    # ========================================================
+    def get_unique_view_count(self, obj):
+        return obj.unique_views.count()
 
-    def validate_profile_image_1(
-        self,
-        uploaded_file,
-    ):
+    def get_community_share_count(self, obj):
+        return obj.community_shares.count()
 
-        return (
-            self.validate_profile_image(
-                uploaded_file
-            )
-        )
+    def get_saved_by_me(self, obj):
+        request = self.context.get("request")
 
+        if (
+            not request
+            or not request.user
+            or not request.user.is_authenticated
+        ):
+            return False
 
-    def validate_profile_image_2(
-        self,
-        uploaded_file,
-    ):
+        return obj.saved_by.filter(
+            user=request.user
+        ).exists()
 
-        return (
-            self.validate_profile_image(
-                uploaded_file
-            )
-        )
-
-
-    def validate_profile_image_3(
-        self,
-        uploaded_file,
-    ):
-
-        return (
-            self.validate_profile_image(
-                uploaded_file
-            )
-        )
-
-
-    def validate_profile_image(
-        self,
-        uploaded_file,
-    ):
-
+    def validate_image(self, uploaded_file):
         if not uploaded_file:
             return uploaded_file
 
+        maximum_size = 5 * 1024 * 1024
 
-        maximum_size = (
-            10 * 1024 * 1024
-        )
-
-
-        if (
-            uploaded_file.size >
-            maximum_size
-        ):
-
+        if uploaded_file.size > maximum_size:
             raise serializers.ValidationError(
-                (
-                    "Profile image must "
-                    "be smaller than 10 MB."
-                )
+                "Image must be smaller than 5 MB."
             )
 
-
-        allowed_types = {
+        allowed_content_types = {
             "image/jpeg",
             "image/png",
             "image/webp",
         }
-
 
         content_type = getattr(
             uploaded_file,
@@ -536,63 +271,29 @@ class ProfileSerializer(
             "",
         )
 
-
-        if (
-            content_type
-            and
-            content_type
-            not in allowed_types
-        ):
-
+        if content_type not in allowed_content_types:
             raise serializers.ValidationError(
-                (
-                    "Upload a JPG, PNG, "
-                    "or WebP image."
-                )
+                "Upload a JPG, PNG, or WebP image."
             )
-
 
         return uploaded_file
 
-
-    # ========================================================
-    # GOVERNMENT ID VALIDATION
-    # ========================================================
-
-    def validate_government_id(
-        self,
-        uploaded_file,
-    ):
-
+    def validate_video(self, uploaded_file):
         if not uploaded_file:
             return uploaded_file
 
+        maximum_size = 50 * 1024 * 1024
 
-        maximum_size = (
-            5 * 1024 * 1024
-        )
-
-
-        if (
-            uploaded_file.size >
-            maximum_size
-        ):
-
+        if uploaded_file.size > maximum_size:
             raise serializers.ValidationError(
-                (
-                    "Government ID must "
-                    "be smaller than 5 MB."
-                )
+                "Video must be smaller than 50 MB."
             )
 
-
-        allowed_types = {
-            "image/jpeg",
-            "image/png",
-            "image/webp",
-            "application/pdf",
+        allowed_content_types = {
+            "video/mp4",
+            "video/webm",
+            "video/quicktime",
         }
-
 
         content_type = getattr(
             uploaded_file,
@@ -600,187 +301,312 @@ class ProfileSerializer(
             "",
         )
 
-
-        if (
-            content_type
-            and
-            content_type
-            not in allowed_types
-        ):
-
+        if content_type not in allowed_content_types:
             raise serializers.ValidationError(
-                (
-                    "Upload a JPG, PNG, WebP, "
-                    "or PDF document."
-                )
+                "Upload an MP4, WebM, or MOV video."
             )
-
 
         return uploaded_file
 
+    def validate(self, attrs):
+        instance = self.instance
 
-    # ========================================================
-    # VALIDATION
-    # ========================================================
-
-    def validate(
-        self,
-        attrs,
-    ):
-
-        government_id = (
-            attrs.get(
-                "government_id"
-            )
+        post_type = attrs.get(
+            "post_type",
+            getattr(instance, "post_type", "post"),
         )
 
-
-        government_id_blob_key = (
-            attrs.get(
-                "government_id_blob_key"
-            )
+        title = attrs.get(
+            "title",
+            getattr(instance, "title", ""),
         )
 
-
-        government_id_type = (
-            attrs.get(
-                "government_id_type"
-            )
+        text = attrs.get(
+            "text",
+            getattr(instance, "text", ""),
         )
 
+        image = attrs.get(
+            "image",
+            getattr(instance, "image", None),
+        )
 
-        # ----------------------------------------------------
-        # EXISTING GOVERNMENT ID TYPE
-        # ----------------------------------------------------
+        image_url = attrs.get(
+            "image_url",
+            getattr(instance, "image_url", ""),
+        )
+
+        video = attrs.get(
+            "video",
+            getattr(instance, "video", None),
+        )
+
+        video_url = attrs.get(
+            "video_url",
+            getattr(instance, "video_url", ""),
+        )
+
+        title = title.strip() if title else ""
+        image_url = image_url.strip() if image_url else ""
+        video_url = video_url.strip() if video_url else ""
+        text = text.strip() if text else ""
+
+        valid_post_types = {
+            "post",
+            "article",
+            "image",
+            "video",
+        }
+
+        if post_type not in valid_post_types:
+            raise serializers.ValidationError(
+                {
+                    "post_type": "Invalid post type."
+                }
+            )
+
+        if post_type == "article" and not title:
+            raise serializers.ValidationError(
+                {
+                    "title": "Article title is required."
+                }
+            )
 
         if (
-            not government_id_type
-            and self.instance
+            post_type in ("post", "article")
+            and not text
         ):
-
-            government_id_type = (
-                self.instance
-                .government_id_type
+            raise serializers.ValidationError(
+                {
+                    "text": "Content is required."
+                }
             )
 
-
-        # ----------------------------------------------------
-        # GOVERNMENT ID TYPE REQUIRED
-        # ----------------------------------------------------
+        if (
+            post_type == "image"
+            and not image
+            and not image_url
+        ):
+            raise serializers.ValidationError(
+                {
+                    "image_url": (
+                        "Please upload an image."
+                    )
+                }
+            )
 
         if (
-            government_id
-            or government_id_blob_key
+            post_type == "video"
+            and not video
+            and not video_url
         ):
+            raise serializers.ValidationError(
+                {
+                    "video_url": (
+                        "Please upload a video."
+                    )
+                }
+            )
 
-            if not government_id_type:
-
-                raise serializers.ValidationError(
-                    {
-                        "government_id_type":
-                            (
-                                "Select the type "
-                                "of Government ID."
-                            )
-                    }
-                )
-
+        attrs["title"] = title
+        attrs["text"] = text
 
         return attrs
 
 
-    # ========================================================
-    # UPDATE
-    # ========================================================
+class SharedPostSerializer(serializers.ModelSerializer):
+    shared_by = UserSerializer(read_only=True)
 
-    @transaction.atomic
-    def update(
-        self,
-        instance,
-        validated_data,
-    ):
-
-        new_government_id = (
-            validated_data.get(
-                "government_id"
-            )
-        )
-
-
-        new_government_blob = (
-            validated_data.get(
-                "government_id_blob_key"
-            )
-        )
-
-
-        # ----------------------------------------------------
-        # SAVE ALL SUPPLIED FIELDS
-        # ----------------------------------------------------
-
-        for (
-            field,
-            value,
-        ) in validated_data.items():
-
-            setattr(
-                instance,
-                field,
-                value,
-            )
-
-
-        # ----------------------------------------------------
-        # NEW GOVERNMENT ID =
-        # VERIFICATION REQUIRED AGAIN
-        # ----------------------------------------------------
-
-        if (
-            new_government_id
-            or new_government_blob
-        ):
-
-            instance.verification_status = (
-                "pending"
-            )
-
-            instance.is_verified = False
-
-            instance.verified_by = None
-
-            instance.verified_at = None
-
-            instance.rejection_reason = ""
-
-
-        instance.save()
-
-
-        return instance
-
-
-# ============================================================
-# USER SERIALIZER
-# ============================================================
-
-class UserSerializer(
-    serializers.ModelSerializer
-):
-
-    profile = (
-        ProfileSerializer(
-            read_only=True
-        )
+    original_post = PostSerializer(
+        read_only=True
     )
-
-
-    full_name = (
-        serializers.SerializerMethodField()
-    )
-
 
     class Meta:
+        model = SharedPost
+        fields = (
+            "id",
+            "original_post",
+            "shared_by",
+            "message",
+            "created_at",
+        )
+        read_only_fields = (
+            "id",
+            "original_post",
+            "shared_by",
+            "created_at",
+        )
 
+    def validate_message(self, value):
+        clean_message = value.strip()
+
+        if len(clean_message) > 2000:
+            raise serializers.ValidationError(
+                "Repost message cannot exceed 2,000 characters."
+            )
+
+        return clean_message
+
+
+class FoodListingSerializer(serializers.ModelSerializer):
+    owner = UserSerializer(read_only=True)
+    claimed_by = UserSerializer(read_only=True)
+
+    class Meta:
+        model = FoodListing
+        fields = (
+            "id",
+            "owner",
+            "title",
+            "description",
+            "quantity",
+            "quantity_kg",
+            "location",
+            "pickup_time",
+            "image",
+            "image_blob_key",
+            "image_url",
+            "image_original_name",
+            "image_content_type",
+            "status",
+            "claimed_by",
+            "created_at",
+        )
+
+        read_only_fields = (
+            "id",
+            "owner",
+            "status",
+            "claimed_by",
+            "created_at",
+        )
+
+        extra_kwargs = {
+            "image": {
+                "required": False,
+                "allow_null": True,
+            },
+            "image_blob_key": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "image_url": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "image_original_name": {
+                "required": False,
+                "allow_blank": True,
+            },
+            "image_content_type": {
+                "required": False,
+                "allow_blank": True,
+            },
+        }
+
+    def validate_quantity_kg(self, value):
+        if value <= 0:
+            raise serializers.ValidationError(
+                "Weight must be greater than zero."
+            )
+
+        return value
+
+
+class InvitationSerializer(serializers.ModelSerializer):
+    sender = UserSerializer(read_only=True)
+    receiver = UserSerializer(read_only=True)
+
+    receiver_email = serializers.EmailField(
+        write_only=True,
+        required=True,
+    )
+
+    class Meta:
+        model = Invitation
+
+        fields = (
+            "id",
+            "sender",
+            "receiver",
+            "receiver_email",
+            "title",
+            "note",
+            "cuisine",
+            "location",
+            "scheduled_for",
+            "meet_type",
+            "status",
+            "created_at",
+        )
+
+        read_only_fields = (
+            "id",
+            "sender",
+            "receiver",
+            "status",
+            "created_at",
+        )
+
+    def validate_receiver_email(self, value):
+        email = value.strip().lower()
+        request = self.context.get("request")
+
+        if (
+            request
+            and request.user.is_authenticated
+            and request.user.email.lower() == email
+        ):
+            raise serializers.ValidationError(
+                "You cannot send an invitation to yourself."
+            )
+
+        if not User.objects.filter(
+            email__iexact=email,
+            is_active=True,
+        ).exists():
+            raise serializers.ValidationError(
+                "No active FoodKindl user was found with this email."
+            )
+
+        return email
+
+    def create(self, validated_data):
+        receiver_email = validated_data.pop(
+            "receiver_email"
+        )
+
+        try:
+            receiver = User.objects.get(
+                email__iexact=receiver_email,
+                is_active=True,
+            )
+        except User.DoesNotExist:
+            raise serializers.ValidationError(
+                {
+                    "receiver_email": (
+                        "No active FoodKindl user was found "
+                        "with this email."
+                    )
+                }
+            )
+
+        return Invitation.objects.create(
+            receiver=receiver,
+            **validated_data,
+        )
+
+
+class MemberSerializer(serializers.ModelSerializer):
+    profile = ProfileSerializer(
+        read_only=True
+    )
+
+    full_name = serializers.SerializerMethodField()
+    connection_status = serializers.SerializerMethodField()
+    connection_id = serializers.SerializerMethodField()
+
+    class Meta:
         model = User
 
         fields = (
@@ -790,427 +616,399 @@ class UserSerializer(
             "full_name",
             "email",
             "profile",
+            "connection_status",
+            "connection_id",
         )
 
+        read_only_fields = fields
 
-    def get_full_name(
-        self,
-        obj,
-    ):
+    def get_full_name(self, obj):
+        full_name = obj.get_full_name().strip()
 
-        return (
-            obj.get_full_name().strip()
-            or obj.email
-        )
+        return full_name or obj.email
 
+    def get_connection(self, obj):
+        request = self.context.get("request")
 
-# ============================================================
-# BLOCKED MEMBER SERIALIZER
-# ============================================================
-
-class BlockedMemberSerializer(
-    serializers.ModelSerializer
-):
-
-    full_name = (
-        serializers.SerializerMethodField()
-    )
-
-
-    profile_image = (
-        serializers.SerializerMethodField()
-    )
-
-
-    class Meta:
-
-        model = User
-
-        fields = (
-            "id",
-            "first_name",
-            "last_name",
-            "full_name",
-            "profile_image",
-        )
-
-
-    def get_full_name(
-        self,
-        obj,
-    ):
-
-        return (
-            obj.get_full_name().strip()
-            or "FoodKindl Member"
-        )
-
-
-    def get_profile_image(
-        self,
-        obj,
-    ):
-
-        profile = getattr(
-            obj,
-            "profile",
-            None,
-        )
-
-
-        if not profile:
+        if (
+            not request
+            or not request.user
+            or not request.user.is_authenticated
+        ):
             return None
 
-
-        # ----------------------------------------------------
-        # NETLIFY BLOB FIRST
-        # ----------------------------------------------------
-
-        if (
-            profile
-            .profile_image_1_url
-        ):
-
-            return (
-                profile
-                .profile_image_1_url
-            )
-
-
-        # ----------------------------------------------------
-        # LEGACY DJANGO FALLBACK
-        # ----------------------------------------------------
-
-        if (
-            profile
-            .profile_image_1
-        ):
-
-            try:
-
-                image_url = (
-                    profile
-                    .profile_image_1
-                    .url
+        return (
+            Connection.objects
+            .filter(
+                Q(
+                    sender=request.user,
+                    receiver=obj,
                 )
-
-            except ValueError:
-
-                return None
-
-
-            request = (
-                self.context.get(
-                    "request"
+                | Q(
+                    sender=obj,
+                    receiver=request.user,
                 )
             )
+            .order_by("-created_at")
+            .first()
+        )
 
+    def get_connection_status(self, obj):
+        connection = self.get_connection(obj)
 
-            if request:
+        if not connection:
+            return "none"
 
-                absolute_url = (
-                    request
-                    .build_absolute_uri(
-                        image_url
-                    )
-                )
+        request = self.context.get("request")
 
+        if connection.status == "accepted":
+            return "connected"
 
-                if (
-                    request
-                    .get_host()
-                    .endswith(
-                        ".onrender.com"
-                    )
-                    and
-                    absolute_url
-                    .startswith(
-                        "http://"
-                    )
-                ):
+        if connection.status == "pending":
+            if (
+                request
+                and connection.sender_id
+                == request.user.id
+            ):
+                return "request_sent"
 
-                    absolute_url = (
-                        "https://"
-                        +
-                        absolute_url[
-                            len(
-                                "http://"
-                            ):
-                        ]
-                    )
+            return "request_received"
 
+        return connection.status
 
-                return absolute_url
+    def get_connection_id(self, obj):
+        connection = self.get_connection(obj)
 
-
-            return image_url
-
+        if connection:
+            return connection.id
 
         return None
 
 
-# ============================================================
-# REGISTER
-# ============================================================
+class ConnectionSerializer(serializers.ModelSerializer):
+    sender = UserSerializer(read_only=True)
+    receiver = UserSerializer(read_only=True)
 
-class RegisterSerializer(
-    serializers.ModelSerializer
-):
-
-    password = (
-        serializers.CharField(
-            write_only=True,
-            min_length=6,
-            trim_whitespace=False,
-        )
+    receiver_id = serializers.IntegerField(
+        write_only=True,
+        required=True,
     )
 
-
     class Meta:
-
-        model = User
+        model = Connection
 
         fields = (
             "id",
-            "first_name",
-            "last_name",
-            "email",
-            "password",
+            "sender",
+            "receiver",
+            "receiver_id",
+            "status",
+            "created_at",
+            "updated_at",
         )
-
 
         read_only_fields = (
             "id",
+            "sender",
+            "receiver",
+            "status",
+            "created_at",
+            "updated_at",
         )
 
+    def validate_receiver_id(self, value):
+        request = self.context.get("request")
 
-    def validate_email(
-        self,
-        value,
-    ):
-
-        email = (
-            value
-            .strip()
-            .lower()
-        )
-
-
-        if not email:
-
+        if not request or not request.user.is_authenticated:
             raise serializers.ValidationError(
-                "Email is required."
+                "Authentication is required."
             )
 
+        if request.user.id == value:
+            raise serializers.ValidationError(
+                "You cannot connect with yourself."
+            )
+
+        if not User.objects.filter(
+            id=value,
+            is_active=True,
+        ).exists():
+            raise serializers.ValidationError(
+                "This FoodKindl member was not found."
+            )
+
+        return value
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        receiver_id = attrs.get("receiver_id")
+
+        if not request or not request.user.is_authenticated:
+            raise serializers.ValidationError(
+                {
+                    "detail": "Authentication is required."
+                }
+            )
+
+        existing_connection = (
+            Connection.objects
+            .filter(
+                Q(
+                    sender=request.user,
+                    receiver_id=receiver_id,
+                )
+                | Q(
+                    sender_id=receiver_id,
+                    receiver=request.user,
+                )
+            )
+            .order_by("-created_at")
+            .first()
+        )
+
+        if existing_connection:
+            if existing_connection.status == "accepted":
+                raise serializers.ValidationError(
+                    {
+                        "detail": (
+                            "You are already connected "
+                            "with this member."
+                        )
+                    }
+                )
+
+            if (
+                existing_connection.status == "pending"
+                and existing_connection.sender_id
+                == receiver_id
+            ):
+                raise serializers.ValidationError(
+                    {
+                        "detail": (
+                            "This member has already sent "
+                            "you a connection request."
+                        )
+                    }
+                )
+
+            if (
+                existing_connection.status == "pending"
+                and existing_connection.sender_id
+                == request.user.id
+            ):
+                raise serializers.ValidationError(
+                    {
+                        "detail": (
+                            "You have already sent a "
+                            "connection request to this member."
+                        )
+                    }
+                )
+
+        return attrs
+
+    def create(self, validated_data):
+        request = self.context["request"]
+
+        receiver_id = validated_data.pop(
+            "receiver_id"
+        )
+
+        receiver = User.objects.get(
+            id=receiver_id,
+            is_active=True,
+        )
+
+        existing_connection = (
+            Connection.objects
+            .filter(
+                sender=request.user,
+                receiver=receiver,
+            )
+            .first()
+        )
+
+        if existing_connection:
+            existing_connection.status = "pending"
+
+            existing_connection.save(
+                update_fields=[
+                    "status",
+                    "updated_at",
+                ]
+            )
+
+            return existing_connection
+
+        return Connection.objects.create(
+            sender=request.user,
+            receiver=receiver,
+            status="pending",
+        )
+
+
+class DirectMessageSerializer(serializers.ModelSerializer):
+    sender = UserSerializer(
+        read_only=True
+    )
+
+    class Meta:
+        model = DirectMessage
+
+        fields = (
+            "id",
+            "conversation",
+            "sender",
+            "text",
+            "is_read",
+            "created_at",
+        )
+
+        read_only_fields = (
+            "id",
+            "conversation",
+            "sender",
+            "is_read",
+            "created_at",
+        )
+
+    def validate_text(self, value):
+        clean_text = value.strip()
+
+        if not clean_text:
+            raise serializers.ValidationError(
+                "Message cannot be empty."
+            )
+
+        if len(clean_text) > 3000:
+            raise serializers.ValidationError(
+                "Message cannot exceed 3,000 characters."
+            )
+
+        return clean_text
+
+
+class ConversationSerializer(serializers.ModelSerializer):
+    participants = UserSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    other_user = serializers.SerializerMethodField()
+    last_message = serializers.SerializerMethodField()
+    unread_count = serializers.SerializerMethodField()
+
+    food_listing_id = serializers.IntegerField(
+        source="food_listing.id",
+        read_only=True,
+        allow_null=True,
+    )
+
+    class Meta:
+        model = Conversation
+        fields = (
+            "id",
+            "conversation_type",
+            "title",
+            "food_listing_id",
+            "participants",
+            "other_user",
+            "last_message",
+            "unread_count",
+            "is_active",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+    def get_other_user(self, obj):
+        request = self.context.get("request")
+
+        if obj.conversation_type != "direct":
+            return None
 
         if (
-            User.objects
-            .filter(
-                email__iexact=email
-            )
-            .exists()
+            not request
+            or not request.user
+            or not request.user.is_authenticated
         ):
+            return None
 
-            raise serializers.ValidationError(
-                (
-                    "An account with this "
-                    "email already exists."
-                )
+        other_user = (
+            obj.participants
+            .exclude(id=request.user.id)
+            .select_related("profile")
+            .first()
+        )
+
+        if not other_user:
+            return None
+
+        return UserSerializer(
+            other_user,
+            context={"request": request},
+        ).data
+
+    def get_last_message(self, obj):
+        message = (
+            obj.messages
+            .select_related(
+                "sender",
+                "sender__profile",
             )
+            .order_by("-created_at")
+            .first()
+        )
 
+        if not message:
+            return None
 
-        return email
+        return DirectMessageSerializer(
+            message,
+            context=self.context,
+        ).data
 
+    def get_unread_count(self, obj):
+        request = self.context.get("request")
 
-    @transaction.atomic
-    def create(
-        self,
-        validated_data,
-    ):
+        if (
+            not request
+            or not request.user
+            or not request.user.is_authenticated
+        ):
+            return 0
 
-        password = (
-            validated_data.pop(
-                "password"
-            )
+        return (
+            obj.messages
+            .filter(is_read=False)
+            .exclude(sender=request.user)
+            .count()
         )
 
 
-        email = (
-            validated_data[
-                "email"
-            ]
-            .strip()
-            .lower()
-        )
-
-
-        user = User(
-
-            username=email,
-
-            email=email,
-
-            first_name=(
-                validated_data.get(
-                    "first_name",
-                    "",
-                ).strip()
-            ),
-
-            last_name=(
-                validated_data.get(
-                    "last_name",
-                    "",
-                ).strip()
-            ),
-        )
-
-
-        user.set_password(
-            password
-        )
-
-
-        user.save()
-
-
-        Profile.objects.get_or_create(
-            user=user
-        )
-
-
-        return user
-
-
-# ============================================================
-# LOGIN
-# ============================================================
-
-class EmailLoginSerializer(
-    serializers.Serializer
-):
-
-    email = (
-        serializers.EmailField(
-            write_only=True
-        )
+class IsVerifiedMember(BasePermission):
+    message = (
+        "Your Government ID must be approved "
+        "before you can access this feature."
     )
 
-
-    password = (
-        serializers.CharField(
-            write_only=True,
-            trim_whitespace=False,
-        )
-    )
-
-
-    def validate(
+    def has_permission(
         self,
-        attrs,
+        request,
+        view,
     ):
+        if not request.user.is_authenticated:
+            return False
 
-        email = (
-            attrs["email"]
-            .strip()
-            .lower()
+        profile = getattr(
+            request.user,
+            "profile",
+            None,
         )
 
-
-        password = (
-            attrs["password"]
+        return bool(
+            profile
+            and profile.is_verified
+            and profile.verification_status
+            == "approved"
         )
-
-
-        try:
-
-            database_user = (
-                User.objects.get(
-                    email__iexact=email
-                )
-            )
-
-        except User.DoesNotExist:
-
-            raise serializers.ValidationError(
-                {
-                    "detail":
-                        (
-                            "Invalid email "
-                            "or password."
-                        )
-                }
-            )
-
-
-        user = authenticate(
-
-            request=(
-                self.context.get(
-                    "request"
-                )
-            ),
-
-            username=(
-                database_user
-                .username
-            ),
-
-            password=password,
-        )
-
-
-        if user is None:
-
-            raise serializers.ValidationError(
-                {
-                    "detail":
-                        (
-                            "Invalid email "
-                            "or password."
-                        )
-                }
-            )
-
-
-        if not user.is_active:
-
-            raise serializers.ValidationError(
-                {
-                    "detail":
-                        (
-                            "This account "
-                            "is disabled."
-                        )
-                }
-            )
-
-
-        Profile.objects.get_or_create(
-            user=user
-        )
-
-
-        refresh = (
-            RefreshToken.for_user(
-                user
-            )
-        )
-
-
-        return {
-
-            "refresh":
-                str(refresh),
-
-            "access":
-                str(
-                    refresh.access_token
-                ),
-
-            "user":
-                UserSerializer(
-                    user,
-                    context=self.context,
-                ).data,
-        }
