@@ -766,6 +766,9 @@ export default function Profile() {
         ?.government_id_blob_key?.[0] ||
 
       data
+        ?.government_id_url?.[0] ||
+
+      data
         ?.government_id_original_name?.[0] ||
 
       data
@@ -978,12 +981,33 @@ export default function Profile() {
           );
 
 
+        console.log(
+          "GOVERNMENT ID UPLOAD RESPONSE:",
+          uploadedGovernmentId
+        );
+
+
+        // Blob key
         formData.append(
           "government_id_blob_key",
           uploadedGovernmentId.key
         );
 
 
+        // HTTPS URL
+        if (
+          uploadedGovernmentId.url
+        ) {
+
+          formData.append(
+            "government_id_url",
+            uploadedGovernmentId.url
+          );
+
+        }
+
+
+        // Original filename
         formData.append(
           "government_id_original_name",
           uploadedGovernmentId.filename ||
@@ -991,6 +1015,7 @@ export default function Profile() {
         );
 
 
+        // Content type
         formData.append(
           "government_id_content_type",
           uploadedGovernmentId.contentType ||
