@@ -186,42 +186,29 @@ TEMPLATES = [
 
 
 # ============================================================
-# DATABASE
+# DATABASE - POSTGRESQL ONLY
 #
-# Production:
-# Render PostgreSQL through DATABASE_URL
-#
-# Local:
-# SQLite fallback
+# Render:
+# Set DATABASE_URL to the Internal Database URL provided by
+# your Render PostgreSQL database.
 # ============================================================
 
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL"
-)
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL environment variable is not set. "
+        "Add your PostgreSQL connection URL to the environment."
+    )
 
-if DATABASE_URL:
-    DATABASES = {
-        "default": (
-            dj_database_url.config(
-                default=DATABASE_URL,
-                conn_max_age=600,
-                conn_health_checks=True,
-                ssl_require=not DEBUG,
-            )
-        )
-    }
-
-else:
-    DATABASES = {
-        "default": {
-            "ENGINE":
-                "django.db.backends.sqlite3",
-
-            "NAME":
-                BASE_DIR / "db.sqlite3",
-        }
-    }
+DATABASES = {
+    "default": dj_database_url.parse(
+        DATABASE_URL,
+        conn_max_age=600,
+        conn_health_checks=True,
+        ssl_require=not DEBUG,
+    )
+}
 
 
 # ============================================================
@@ -546,4 +533,4 @@ if DEBUG:
         "CSRF_TRUSTED_ORIGINS:",
         CSRF_TRUSTED_ORIGINS,
     )
-    print("======================================")
+    print("====================")
