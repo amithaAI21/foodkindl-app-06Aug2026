@@ -7,7 +7,6 @@ import {
   MapPin,
   MessageCircle,
   MessageSquare,
-  MessagesSquare,
   RefreshCw,
   Repeat2,
   Share2,
@@ -1101,6 +1100,77 @@ export default function Community() {
     );
   }
 
+  function formatRelativeTime(dateValue) {
+    if (!dateValue) {
+      return "";
+    }
+
+    const date = new Date(dateValue);
+    const diffInSeconds = Math.max(
+      0,
+      Math.floor(
+        (Date.now() - date.getTime()) / 1000
+      )
+    );
+
+    if (diffInSeconds < 60) {
+      return "Just now";
+    }
+
+    const minutes = Math.floor(
+      diffInSeconds / 60
+    );
+
+    if (minutes < 60) {
+      return `${minutes}m`;
+    }
+
+    const hours = Math.floor(
+      minutes / 60
+    );
+
+    if (hours < 24) {
+      return `${hours}h`;
+    }
+
+    const days = Math.floor(
+      hours / 24
+    );
+
+    if (days < 7) {
+      return `${days}d`;
+    }
+
+    return date.toLocaleDateString(
+      undefined,
+      {
+        day: "numeric",
+        month: "short",
+        year:
+          date.getFullYear() !==
+          new Date().getFullYear()
+            ? "numeric"
+            : undefined,
+      }
+    );
+  }
+
+  function getPostTypeLabel(postType) {
+    if (postType === "article") {
+      return "Article";
+    }
+
+    if (postType === "video") {
+      return "Video";
+    }
+
+    if (postType === "image") {
+      return "Photo";
+    }
+
+    return "Post";
+  }
+
   const savedPosts = posts.filter(
     (post) => post.saved_by_me
   );
@@ -1212,35 +1282,60 @@ export default function Community() {
             </div>
           )}
 
-        <div className="feed-author">
-          {authorImage ? (
-            <img
-              src={authorImage}
-              alt={authorName}
-              className="community-avatar"
-            />
-          ) : (
-            <div className="avatar-mini">
-              {getAuthorInitial(
-                post.author
-              )}
+        <div className="feed-author-row">
+          <div className="feed-author">
+            {authorImage ? (
+              <img
+                src={authorImage}
+                alt={authorName}
+                className="community-avatar"
+              />
+            ) : (
+              <div className="avatar-mini">
+                {getAuthorInitial(
+                  post.author
+                )}
+              </div>
+            )}
+
+            <div className="feed-author-copy">
+              <strong>{authorName}</strong>
+
+              <div className="feed-post-meta">
+                <small>
+                  {formatRelativeTime(
+                    post.created_at
+                  )}
+                </small>
+
+                <span aria-hidden="true">·</span>
+
+                <span className="post-type-label">
+                  {getPostTypeLabel(
+                    post.post_type
+                  )}
+                </span>
+              </div>
             </div>
-          )}
-
-          <div>
-            <strong>{authorName}</strong>
-
-            <small>
-              {new Date(
-                post.created_at
-              ).toLocaleString()}
-            </small>
           </div>
-        </div>
 
-        <span className="post-type-label">
-          {post.post_type || "post"}
-        </span>
+          {post.author?.id !==
+            user?.id && (
+            <button
+              type="button"
+              className="feed-author-message"
+              onClick={(event) =>
+                openDirectMessage(
+                  event,
+                  post.author
+                )
+              }
+            >
+              <MessageCircle size={17} />
+              Message
+            </button>
+          )}
+        </div>
 
         {post.location_name && (
           <div className="post-location">
@@ -1410,25 +1505,6 @@ export default function Community() {
             )}
           </div>
 
-          {post.author?.id !==
-            user?.id && (
-            <button
-              type="button"
-              className="interaction-button"
-              onClick={(event) =>
-                openDirectMessage(
-                  event,
-                  post.author
-                )
-              }
-            >
-              <MessagesSquare
-                size={19}
-              />
-              Message
-            </button>
-          )}
-
           <button
             type="button"
             className="interaction-button"
@@ -1440,34 +1516,6 @@ export default function Community() {
           >
             <MessageCircle size={19} />
             Comment
-          </button>
-
-          <button
-            type="button"
-            className={
-              post.saved_by_me
-                ? "interaction-button saved"
-                : "interaction-button"
-            }
-            onClick={(event) =>
-              toggleSave(
-                event,
-                post
-              )
-            }
-          >
-            <Bookmark
-              size={19}
-              fill={
-                post.saved_by_me
-                  ? "currentColor"
-                  : "none"
-              }
-            />
-
-            {post.saved_by_me
-              ? "Saved"
-              : "Save"}
           </button>
 
           <button
@@ -1497,13 +1545,411 @@ export default function Community() {
             <Share2 size={19} />
             Share
           </button>
+
+          <button
+            type="button"
+            className={
+              post.saved_by_me
+                ? "interaction-button saved"
+                : "interaction-button"
+            }
+            onClick={(event) =>
+              toggleSave(
+                event,
+                post
+              )
+            }
+          >
+            <Bookmark
+              size={19}
+              fill={
+                post.saved_by_me
+                  ? "currentColor"
+                  : "none"
+              }
+            />
+
+            {post.saved_by_me
+              ? "Saved"
+              : "Save"}
+          </button>
         </div>
       </article>
     );
   }
 
   return (
-    <main className="app-page community-page">
+    <>
+      <style>{`
+        .community-page {
+          width: min(1240px, calc(100% - 56px));
+          max-width: 1240px;
+          margin: 0 auto;
+          padding: 30px 0 72px;
+        }
+
+        .community-desktop-intro {
+          margin: 6px 0 22px;
+        }
+
+        .community-desktop-intro h1 {
+          margin: 6px 0 0;
+          font-size: clamp(30px, 2.6vw, 42px);
+          line-height: 1.08;
+          letter-spacing: -0.035em;
+        }
+
+        .community-tabs {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin: 0 0 28px;
+          padding: 7px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 16px;
+          background: rgba(255, 255, 255, 0.018);
+        }
+
+        .community-tab {
+          min-width: 126px;
+          min-height: 44px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          padding: 10px 18px;
+          border: 0;
+          border-radius: 11px;
+          background: transparent;
+          color: rgba(255, 255, 255, 0.62);
+          font: inherit;
+          font-weight: 600;
+          cursor: pointer;
+        }
+
+        .community-tab.active {
+          background: linear-gradient(
+            135deg,
+            rgba(154, 20, 15, 0.96),
+            rgba(112, 10, 8, 0.96)
+          );
+          color: #fff;
+        }
+
+        .community-layout {
+          display: grid;
+          grid-template-columns:
+            minmax(0, 68fr)
+            minmax(320px, 32fr);
+          gap: 28px;
+          align-items: start;
+          width: 100%;
+          max-width: 1240px;
+          margin-left: auto;
+          margin-right: auto;
+        }
+
+        .community-feed-heading {
+          margin-bottom: 18px;
+        }
+
+        .community-feed-heading h2 {
+          max-width: 720px;
+          margin: 8px 0 0;
+          font-size: 28px;
+          line-height: 1.2;
+          letter-spacing: -0.025em;
+        }
+
+        .feed-list {
+          display: grid;
+          gap: 18px;
+        }
+
+        .feed-card {
+          overflow: visible;
+          border: 1px solid rgba(255, 126, 72, 0.14);
+          border-radius: 20px;
+          background:
+            linear-gradient(
+              180deg,
+              rgba(28, 10, 8, 0.96),
+              rgba(22, 8, 7, 0.96)
+            );
+          box-shadow: 0 14px 44px rgba(0, 0, 0, 0.16);
+        }
+
+        .feed-card > :not(.post-media):not(.community-interaction-bar) {
+          margin-left: 22px;
+          margin-right: 22px;
+        }
+
+        .feed-author-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 18px;
+          padding-top: 20px;
+        }
+
+        .feed-author {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          min-width: 0;
+        }
+
+        .feed-author-copy {
+          display: grid;
+          gap: 3px;
+          min-width: 0;
+        }
+
+        .community-avatar,
+        .avatar-mini {
+          width: 46px;
+          height: 46px;
+          flex: 0 0 46px;
+          border-radius: 50%;
+        }
+
+        .community-avatar {
+          object-fit: cover;
+        }
+
+        .avatar-mini {
+          display: grid;
+          place-items: center;
+          border: 1px solid rgba(255, 126, 72, 0.24);
+          background: rgba(255, 126, 72, 0.12);
+          font-weight: 700;
+        }
+
+        .feed-post-meta {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          color: rgba(255, 255, 255, 0.48);
+          font-size: 12px;
+        }
+
+        .post-type-label {
+          color: rgba(255, 255, 255, 0.6);
+          font-size: inherit;
+          text-transform: none;
+        }
+
+        .feed-author-message {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          min-height: 36px;
+          padding: 8px 12px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.025);
+          color: rgba(255, 255, 255, 0.66);
+          font: inherit;
+          font-size: 13px;
+          cursor: pointer;
+        }
+
+        .feed-author-message:hover {
+          background: rgba(255, 255, 255, 0.06);
+          color: #fff;
+        }
+
+        .community-card-title {
+          margin-top: 18px;
+          margin-bottom: 8px;
+          font-size: 25px;
+          line-height: 1.22;
+          color: #fff;
+        }
+
+        .community-card-text {
+          margin-top: 8px;
+          margin-bottom: 18px;
+          color: rgba(255, 255, 255, 0.76);
+          font-size: 15px;
+          line-height: 1.68;
+          white-space: pre-wrap;
+        }
+
+        .post-media {
+          width: 100%;
+          margin-top: 18px;
+          overflow: hidden;
+          background: #090909;
+        }
+
+        .post-image,
+        .post-video {
+          width: 100%;
+          max-height: 560px;
+          display: block;
+          object-fit: cover;
+          background: #090909;
+        }
+
+        .community-metrics {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 17px;
+          padding-top: 14px;
+          padding-bottom: 14px;
+          color: rgba(255, 255, 255, 0.46);
+          font-size: 12px;
+        }
+
+        .community-interaction-bar {
+          position: relative;
+          display: grid;
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+          gap: 4px;
+          padding: 9px 12px 11px;
+          border-top: 1px solid rgba(255, 255, 255, 0.07);
+        }
+
+        .interaction-button {
+          min-height: 42px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 7px;
+          padding: 9px 8px;
+          border: 0;
+          border-radius: 9px;
+          background: transparent;
+          color: rgba(255, 255, 255, 0.61);
+          font: inherit;
+          font-size: 13px;
+          cursor: pointer;
+        }
+
+        .interaction-button:hover {
+          background: rgba(255, 255, 255, 0.05);
+          color: #fff;
+        }
+
+        .interaction-button.reacted,
+        .interaction-button.saved {
+          color: #ff8b55;
+          background: rgba(255, 126, 72, 0.07);
+        }
+
+        .reaction-control {
+          position: relative;
+          min-width: 0;
+        }
+
+        .reaction-control > .interaction-button {
+          width: 100%;
+        }
+
+        .reaction-picker {
+          position: absolute;
+          left: 0;
+          bottom: calc(100% + 10px);
+          z-index: 30;
+          display: flex;
+          gap: 4px;
+          padding: 8px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 14px;
+          background: #160a08;
+          box-shadow: 0 18px 44px rgba(0, 0, 0, 0.36);
+        }
+
+        .community-publish-sidebar {
+          position: sticky;
+          top: 90px;
+          display: grid;
+          gap: 16px;
+        }
+
+        .quick-publisher-card {
+          padding: 17px;
+          border: 1px solid rgba(255, 126, 72, 0.14);
+          border-radius: 18px;
+          background:
+            linear-gradient(
+              180deg,
+              rgba(28, 10, 8, 0.93),
+              rgba(22, 8, 7, 0.93)
+            );
+        }
+
+        .quick-publisher-top {
+          display: grid;
+          grid-template-columns: 46px 1fr;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .start-post-button {
+          min-height: 44px;
+          padding: 10px 15px;
+          text-align: left;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.02);
+          color: rgba(255, 255, 255, 0.78);
+          font: inherit;
+          font-weight: 600;
+          cursor: pointer;
+        }
+
+        .quick-publisher-actions {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 4px;
+          margin-top: 13px;
+        }
+
+        .quick-publisher-actions button {
+          min-height: 56px;
+          display: grid;
+          place-items: center;
+          gap: 4px;
+          padding: 7px 5px;
+          border: 0;
+          border-radius: 10px;
+          background: transparent;
+          color: rgba(255, 255, 255, 0.6);
+          font: inherit;
+          font-size: 12px;
+          cursor: pointer;
+        }
+
+        .quick-publisher-actions button:hover {
+          background: rgba(255, 255, 255, 0.05);
+          color: #fff;
+        }
+
+        .community-publisher-sidebar {
+          max-height: calc(100vh - 120px);
+          overflow-y: auto;
+        }
+
+        @media (max-width: 1050px) {
+          .community-page {
+            width: min(100% - 36px, 820px);
+          }
+
+          .community-layout {
+            grid-template-columns: 1fr;
+          }
+
+          .community-publish-sidebar {
+            position: static;
+            grid-row: 1;
+          }
+        }
+      `}</style>
+
+      <main className="app-page community-page">
       <div
         className="community-top-actions"
         style={{
@@ -1535,7 +1981,7 @@ export default function Community() {
         </button>
       </div>
 
-      <div className="app-heading community-page-heading">
+      <div className="community-desktop-intro">
         <div>
           <div className="eyebrow left">
             Community
@@ -1544,12 +1990,6 @@ export default function Community() {
           <h1>
             Food stories and moments
           </h1>
-
-          <p>
-            Share a post, publish an
-            article, upload an image,
-            or share a video.
-          </p>
         </div>
       </div>
 
@@ -1639,7 +2079,7 @@ export default function Community() {
                     : activeTab ===
                         "my-posts"
                       ? "Posts you published"
-                      : "Posts and reposts from other members"}
+                      : "Discover food stories, recipes and experiences from your community"}
                 </h2>
               </div>
 
@@ -1709,18 +2149,6 @@ export default function Community() {
                 type="button"
                 onClick={() =>
                   selectPostType(
-                    "video"
-                  )
-                }
-              >
-                <Video size={20} />
-                Video
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  selectPostType(
                     "image"
                   )
                 }
@@ -1733,12 +2161,24 @@ export default function Community() {
                 type="button"
                 onClick={() =>
                   selectPostType(
+                    "video"
+                  )
+                }
+              >
+                <Video size={20} />
+                Video
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  selectPostType(
                     "article"
                   )
                 }
               >
                 <FileText size={20} />
-                Write article
+                Article
               </button>
             </div>
           </div>
@@ -1978,6 +2418,7 @@ export default function Community() {
           )}
         </aside>
       </div>
-    </main>
+      </main>
+    </>
   );
 }

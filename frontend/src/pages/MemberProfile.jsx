@@ -1,7 +1,11 @@
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
 
 import {
   ArrowLeft,
+  Ban,
   Building2,
   MapPin,
   MessageCircle,
@@ -20,11 +24,15 @@ import { useAuth } from "../context/AuthContext";
 
 
 export default function MemberProfile() {
-  const { memberId } =
-    useParams();
 
-  const { user } =
-    useAuth();
+  const {
+    memberId,
+  } = useParams();
+
+
+  const {
+    user,
+  } = useAuth();
 
 
   const [
@@ -51,24 +59,51 @@ export default function MemberProfile() {
   ] = useState("");
 
 
+  // =========================================================
+  // BLOCKING
+  // =========================================================
+
+  const [
+    blockedByMe,
+    setBlockedByMe,
+  ] = useState(false);
+
+
+  const [
+    interactionBlocked,
+    setInteractionBlocked,
+  ] = useState(false);
+
+
+  const [
+    blockLoading,
+    setBlockLoading,
+  ] = useState(false);
+
+
+  const [
+    blockStatusLoading,
+    setBlockStatusLoading,
+  ] = useState(true);
+
+
   const API_BASE = (
     import.meta.env.VITE_BACKEND_URL ||
     "http://127.0.0.1:8000"
-  ).replace(/\/+$/, "");
+  ).replace(
+    /\/+$/,
+    ""
+  );
 
 
   // =========================================================
   // MEDIA URL
-  //
-  // Supports:
-  // - Netlify Blob absolute URLs
-  // - Netlify relative function URLs
-  // - old Django media URLs
   // =========================================================
 
   function getMediaUrl(
     path
   ) {
+
     if (!path) {
       return "";
     }
@@ -79,7 +114,9 @@ export default function MemberProfile() {
       path.startsWith("https://") ||
       path.startsWith("blob:")
     ) {
+
       return path;
+
     }
 
 
@@ -88,9 +125,11 @@ export default function MemberProfile() {
         "/.netlify/"
       )
     ) {
+
       return (
         `${window.location.origin}${path}`
       );
+
     }
 
 
@@ -107,6 +146,7 @@ export default function MemberProfile() {
   function getMemberName(
     currentMember
   ) {
+
     return (
       currentMember?.full_name ||
 
@@ -131,10 +171,9 @@ export default function MemberProfile() {
   function getErrorMessage(
     data
   ) {
+
     if (!data) {
-      return (
-        "The request could not be completed."
-      );
+      return "The request could not be completed.";
     }
 
 
@@ -142,7 +181,9 @@ export default function MemberProfile() {
       typeof data ===
       "string"
     ) {
+
       return data;
+
     }
 
 
@@ -159,12 +200,16 @@ export default function MemberProfile() {
   // =========================================================
 
   useEffect(() => {
+
     async function loadMember() {
+
       setLoading(true);
+
       setError("");
 
 
       try {
+
         const response =
           await api.get(
             `/members/${memberId}/`
@@ -178,6 +223,7 @@ export default function MemberProfile() {
       } catch (
         requestError
       ) {
+
         console.error(
           "Unable to load member profile:",
           requestError.response?.status,
@@ -191,27 +237,29 @@ export default function MemberProfile() {
             .response
             ?.status === 404
         ) {
+
           setError(
             "This member was not found."
           );
 
         } else {
+
           setError(
             requestError
               .response
               ?.data
               ?.detail ||
-            (
-              "Member profile "
-              +
-              "could not be loaded."
-            )
+            "Member profile could not be loaded."
           );
+
         }
 
       } finally {
+
         setLoading(false);
+
       }
+
     }
 
 
@@ -223,18 +271,233 @@ export default function MemberProfile() {
 
 
   // =========================================================
-  // MESSAGE MEMBER
+  // LOAD BLOCK STATUS
   // =========================================================
 
-  async function messageMember() {
+  useEffect(() => {
+
+    async function loadBlockStatus() {
+
+      if (!memberId) {
+        return;
+      }
+
+
+      if (
+        String(memberId) ===
+        String(user?.id)
+      ) {
+
+        setBlockedByMe(false);
+
+        setInteractionBlocked(false);
+
+        setBlockStatusLoading(false);
+
+        return;
+
+      }
+
+
+      try {
+
+        setBlockStatusLoading(true);
+
+
+        const response =
+          await api.get(
+            `/auth/block-status/${memberId}/`
+          );
+
+
+        setBlockedByMe(
+          response.data
+            ?.blocked_by_me === true
+        );
+
+
+        setInteractionBlocked(
+          response.data
+            ?.interaction_blocked === true
+        );
+
+      } catch (
+        requestError
+      ) {
+
+        console.error(
+          "Unable to load block status:",
+          requestError.response?.data ||
+            requestError
+        );
+
+      } finally {
+
+        setBlockStatusLoading(false);
+
+      }
+
+    }
+
+
+    loadBlockStatus();
+
+  }, [
+    memberId,
+    user?.id,
+  ]);
+
+
+  // =========================================================
+  // BLOCK MEMBER
+  // =========================================================
+
+  async function blockMember() {
+
     if (!member?.id) {
       return;
     }
 
 
     if (
-      member.id === user?.id
+      member.id ===
+      user?.id
     ) {
+
+      return;
+    }
+
+
+    const confirmed =
+      window.confirm(
+        `Block ${getMemberName(member)}?`
+      );
+
+
+    if (!confirmed) {
+      return;
+    }
+
+
+    try {
+
+      setBlockLoading(true);
+
+      setError("");
+
+
+      await api.post(
+        `/auth/block/${member.id}/`
+      );
+
+
+      setBlockedByMe(true);
+
+      setInteractionBlocked(true);
+
+    } catch (
+      requestError
+    ) {
+
+      console.error(
+        "Unable to block member:",
+        requestError.response?.data ||
+          requestError
+      );
+
+
+      setError(
+        getErrorMessage(
+          requestError.response?.data
+        )
+      );
+
+    } finally {
+
+      setBlockLoading(false);
+
+    }
+  }
+
+
+  // =========================================================
+  // UNBLOCK MEMBER
+  // =========================================================
+
+  async function unblockMember() {
+
+    if (!member?.id) {
+      return;
+    }
+
+
+    try {
+
+      setBlockLoading(true);
+
+      setError("");
+
+
+      await api.post(
+        `/auth/unblock/${member.id}/`
+      );
+
+
+      setBlockedByMe(false);
+
+
+      const response =
+        await api.get(
+          `/auth/block-status/${member.id}/`
+        );
+
+
+      setInteractionBlocked(
+        response.data
+          ?.interaction_blocked === true
+      );
+
+    } catch (
+      requestError
+    ) {
+
+      console.error(
+        "Unable to unblock member:",
+        requestError.response?.data ||
+          requestError
+      );
+
+
+      setError(
+        getErrorMessage(
+          requestError.response?.data
+        )
+      );
+
+    } finally {
+
+      setBlockLoading(false);
+
+    }
+  }
+
+
+  // =========================================================
+  // MESSAGE MEMBER
+  // =========================================================
+
+  async function messageMember() {
+
+    if (!member?.id) {
+      return;
+    }
+
+
+    if (
+      member.id ===
+      user?.id
+    ) {
+
       setError(
         "You cannot message yourself."
       );
@@ -243,11 +506,25 @@ export default function MemberProfile() {
     }
 
 
+    if (
+      interactionBlocked
+    ) {
+
+      setError(
+        "This interaction is not available."
+      );
+
+      return;
+    }
+
+
     setMessaging(true);
+
     setError("");
 
 
     try {
+
       const response =
         await api.post(
           "/conversations/",
@@ -277,6 +554,7 @@ export default function MemberProfile() {
     } catch (
       requestError
     ) {
+
       console.error(
         "Unable to start conversation:",
         requestError.response?.status,
@@ -294,7 +572,9 @@ export default function MemberProfile() {
       );
 
     } finally {
+
       setMessaging(false);
+
     }
   }
 
@@ -304,6 +584,7 @@ export default function MemberProfile() {
   // =========================================================
 
   if (loading) {
+
     return (
       <main className="app-page">
 
@@ -313,6 +594,7 @@ export default function MemberProfile() {
 
       </main>
     );
+
   }
 
 
@@ -324,6 +606,7 @@ export default function MemberProfile() {
     error &&
     !member
   ) {
+
     return (
       <main className="app-page">
 
@@ -336,13 +619,16 @@ export default function MemberProfile() {
           to="/connect"
           className="secondary-button"
         >
+
           <ArrowLeft size={18} />
 
           Back to Connect
+
         </Link>
 
       </main>
     );
+
   }
 
 
@@ -359,13 +645,6 @@ export default function MemberProfile() {
     member.profile || {};
 
 
-  // =========================================================
-  // MAIN PROFILE IMAGE
-  //
-  // Netlify Blob first
-  // Django fallback second
-  // =========================================================
-
   const profileImage =
     getMediaUrl(
       profile.profile_image_1_url ||
@@ -373,16 +652,14 @@ export default function MemberProfile() {
     );
 
 
-  // =========================================================
-  // ADDITIONAL PROFILE IMAGES
-  // =========================================================
-
   const additionalImages = [
+
     profile.profile_image_2_url ||
       profile.profile_image_2,
 
     profile.profile_image_3_url ||
       profile.profile_image_3,
+
   ]
     .filter(Boolean)
     .map(
@@ -415,9 +692,7 @@ export default function MemberProfile() {
           to="/connect"
           className="community-back-link"
         >
-          <ArrowLeft
-            size={18}
-          />
+          <ArrowLeft size={18} />
 
           Back to Connect
         </Link>
@@ -434,34 +709,19 @@ export default function MemberProfile() {
             {profileImage ? (
 
               <a
-                href={
-                  profileImage
-                }
+                href={profileImage}
                 target="_blank"
                 rel="noreferrer"
               >
 
                 <img
-                  src={
-                    profileImage
-                  }
+                  src={profileImage}
                   alt={
                     getMemberName(
                       member
                     )
                   }
                   className="member-profile-main-photo"
-                  onError={(event) => {
-                    console.error(
-                      "Member profile image failed:",
-                      profileImage
-                    );
-
-                    event.currentTarget
-                      .style
-                      .display =
-                      "none";
-                  }}
                 />
 
               </a>
@@ -475,6 +735,7 @@ export default function MemberProfile() {
                 />
 
               </div>
+
             )}
 
           </div>
@@ -488,11 +749,7 @@ export default function MemberProfile() {
 
 
             <h1>
-              {
-                getMemberName(
-                  member
-                )
-              }
+              {getMemberName(member)}
             </h1>
 
 
@@ -501,6 +758,7 @@ export default function MemberProfile() {
               <p className="member-profile-role">
                 {profile.role}
               </p>
+
             )}
 
 
@@ -508,7 +766,8 @@ export default function MemberProfile() {
 
               {
                 member.connection_status ===
-                "connected" && (
+                "connected" &&
+                (
 
                   <span className="connected-badge">
 
@@ -519,38 +778,121 @@ export default function MemberProfile() {
                     Connected
 
                   </span>
+
                 )
               }
 
 
               {!isOwnProfile && (
 
-                <button
-                  type="button"
-                  className="primary-button"
-                  onClick={
-                    messageMember
-                  }
-                  disabled={
-                    messaging
-                  }
-                >
+                <>
+                  <button
+                    type="button"
+                    className="primary-button"
 
-                  <MessageCircle
-                    size={19}
-                  />
+                    onClick={
+                      messageMember
+                    }
+
+                    disabled={
+                      messaging ||
+                      interactionBlocked ||
+                      blockStatusLoading
+                    }
+                  >
+
+                    <MessageCircle
+                      size={19}
+                    />
+
+
+                    {
+                      messaging
+                        ? "Opening chat..."
+
+                        : interactionBlocked
+                          ? "Interaction unavailable"
+
+                          : "Message"
+                    }
+
+                  </button>
 
 
                   {
-                    messaging
-                      ? "Opening chat..."
-                      : "Message"
+                    blockedByMe
+                      ? (
+
+                          <button
+                            type="button"
+                            className="member-unblock-button"
+
+                            onClick={
+                              unblockMember
+                            }
+
+                            disabled={
+                              blockLoading
+                            }
+                          >
+
+                            <Ban size={18} />
+
+                            {
+                              blockLoading
+                                ? "Unblocking..."
+                                : "Unblock"
+                            }
+
+                          </button>
+
+                        )
+                      : (
+
+                          <button
+                            type="button"
+                            className="member-block-button"
+
+                            onClick={
+                              blockMember
+                            }
+
+                            disabled={
+                              blockLoading
+                            }
+                          >
+
+                            <Ban size={18} />
+
+                            {
+                              blockLoading
+                                ? "Blocking..."
+                                : "Block Member"
+                            }
+
+                          </button>
+
+                        )
                   }
 
-                </button>
+                </>
+
               )}
 
             </div>
+
+
+            {
+              interactionBlocked &&
+              !blockedByMe &&
+              (
+
+                <p className="member-interaction-notice">
+                  This interaction is currently unavailable.
+                </p>
+
+              )
+            }
 
 
             {error && (
@@ -558,6 +900,7 @@ export default function MemberProfile() {
               <p className="error-message">
                 {error}
               </p>
+
             )}
 
           </div>
@@ -573,9 +916,7 @@ export default function MemberProfile() {
 
           <article className="member-profile-detail-card">
 
-            <MapPin
-              size={22}
-            />
+            <MapPin size={22} />
 
 
             <div>
@@ -599,6 +940,7 @@ export default function MemberProfile() {
                   Postcode:{" "}
                   {profile.postcode}
                 </span>
+
               )}
 
             </div>
@@ -608,9 +950,7 @@ export default function MemberProfile() {
 
           <article className="member-profile-detail-card">
 
-            <Building2
-              size={22}
-            />
+            <Building2 size={22} />
 
 
             <div>
@@ -622,9 +962,7 @@ export default function MemberProfile() {
 
               <strong>
                 {
-                  profile
-                    .college_workplace
-                  ||
+                  profile.college_workplace ||
                   "Not provided"
                 }
               </strong>
@@ -636,9 +974,7 @@ export default function MemberProfile() {
 
           <article className="member-profile-detail-card">
 
-            <Utensils
-              size={22}
-            />
+            <Utensils size={22} />
 
 
             <div>
@@ -651,10 +987,8 @@ export default function MemberProfile() {
               <strong>
 
                 {
-                  profile
-                    .dietary_preference &&
-                  profile
-                    .dietary_preference !==
+                  profile.dietary_preference &&
+                  profile.dietary_preference !==
                     "none"
 
                     ? profile
@@ -677,7 +1011,7 @@ export default function MemberProfile() {
 
 
         {/* ===================================================
-            ABOUT + GALLERY
+            ABOUT
         =================================================== */}
 
         <section className="member-profile-content-grid">
@@ -701,11 +1035,7 @@ export default function MemberProfile() {
             <p>
               {
                 profile.bio ||
-                (
-                  "This member has not "
-                  +
-                  "added a bio yet."
-                )
+                "This member has not added a bio yet."
               }
             </p>
 
@@ -718,10 +1048,7 @@ export default function MemberProfile() {
                 </h3>
 
                 <p>
-                  {
-                    profile
-                      .interests
-                  }
+                  {profile.interests}
                 </p>
 
               </>
@@ -730,13 +1057,9 @@ export default function MemberProfile() {
           </article>
 
 
-          {/* =================================================
-              ADDITIONAL BLOB PHOTOS
-          ================================================= */}
-
           {
-            additionalImages.length >
-            0 && (
+            additionalImages.length > 0 &&
+            (
 
               <article className="app-panel">
 
@@ -755,20 +1078,18 @@ export default function MemberProfile() {
                       ) => (
 
                         <a
-                          href={
-                            image
-                          }
+                          href={image}
                           target="_blank"
                           rel="noreferrer"
+
                           key={
                             `${image}-${index}`
                           }
                         >
 
                           <img
-                            src={
-                              image
-                            }
+                            src={image}
+
                             alt={
                               `${getMemberName(
                                 member
@@ -776,19 +1097,8 @@ export default function MemberProfile() {
                                 index + 2
                               }`
                             }
-                            loading="lazy"
-                            onError={(event) => {
-                              console.error(
-                                "Additional profile image failed:",
-                                image
-                              );
 
-                              event
-                                .currentTarget
-                                .style
-                                .display =
-                                "none";
-                            }}
+                            loading="lazy"
                           />
 
                         </a>
@@ -800,6 +1110,7 @@ export default function MemberProfile() {
                 </div>
 
               </article>
+
             )
           }
 

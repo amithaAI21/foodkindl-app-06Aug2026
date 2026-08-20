@@ -6,6 +6,10 @@ import dj_database_url
 from dotenv import load_dotenv
 
 
+FAST2SMS_API_KEY = os.environ.get(
+    "FAST2SMS_API_KEY",
+    "",
+)
 # ============================================================
 # BASE
 # ============================================================
@@ -77,6 +81,7 @@ INSTALLED_APPS = [
     "accounts",
     "community",
     "website",
+    "safety",
 ]
 
 

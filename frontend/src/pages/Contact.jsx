@@ -267,7 +267,7 @@ export default function Contact() {
                 </span>
 
                 <strong>
-                  support@foodkindl.com
+                  support@foodkindl.org
                 </strong>
 
                 <p>
@@ -318,10 +318,10 @@ export default function Contact() {
                   Bengaluru, India
                 </strong>
 
-                <p>
+                {/* <p>
                   Replace this with your registered
                   office address before publishing.
-                </p>
+                </p> */}
               </div>
 
             </article>

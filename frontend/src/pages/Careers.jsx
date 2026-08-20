@@ -246,7 +246,7 @@ export default function Careers() {
             href="mailto:careers@foodkindl.com"
             className="careers-primary-button"
           >
-            careers@foodkindl.com
+            support@foodkindl.org
           </a>
 
           <small>

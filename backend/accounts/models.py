@@ -186,10 +186,18 @@ class Profile(models.Model):
 
 
     # ========================================================
-    # OLD DJANGO PROFILE PHOTOS
-    #
-    # Keep these temporarily so existing profile photos
-    # do not break.
+    # BLOCKED MEMBERS
+    # ========================================================
+
+    blocked_users = models.ManyToManyField(
+        User,
+        blank=True,
+        related_name="blocked_by_profiles",
+    )
+
+
+    # ========================================================
+    # LEGACY DJANGO PROFILE PHOTOS
     # ========================================================
 
     profile_image_1 = models.ImageField(
@@ -269,9 +277,6 @@ class Profile(models.Model):
 
     # ========================================================
     # LEGACY GOVERNMENT ID
-    #
-    # Kept for backwards compatibility only.
-    # New uploads use Netlify Blob.
     # ========================================================
 
     government_id = models.FileField(
@@ -365,7 +370,32 @@ class Profile(models.Model):
     )
 
 
-    def __str__(self):
+    # ========================================================
+    # HELPERS
+    # ========================================================
+
+    def has_blocked(
+        self,
+        user,
+    ):
+
+        if not user:
+            return False
+
+
+        return (
+            self.blocked_users
+            .filter(
+                id=user.id
+            )
+            .exists()
+        )
+
+
+    def __str__(
+        self,
+    ):
+
         return (
             self.user.email
             or self.user.username
@@ -373,34 +403,19 @@ class Profile(models.Model):
 
 
 # ============================================================
-# CREATE PROFILE AUTOMATICALLY
+# ENSURE EVERY USER HAS A PROFILE
 # ============================================================
 
 @receiver(
     post_save,
     sender=User,
 )
-def create_user_profile(
-    sender,
-    instance,
-    created,
-    **kwargs,
-):
-    if created:
-        Profile.objects.get_or_create(
-            user=instance
-        )
-
-
-@receiver(
-    post_save,
-    sender=User,
-)
-def save_user_profile(
+def ensure_user_profile(
     sender,
     instance,
     **kwargs,
 ):
+
     Profile.objects.get_or_create(
         user=instance
     )

@@ -5,6 +5,11 @@ import {
   useLocation,
 } from "react-router-dom";
 
+import {
+  useEffect,
+  useState,
+} from "react";
+
 import Navbar from "./components/Navbar";
 import MessagingDock from "./components/MessagingDock";
 
@@ -22,15 +27,188 @@ import VerificationRequired from "./pages/VerificationRequired";
 import AIKitchen from "./pages/AIKitchen";
 import Careers from "./pages/Careers";
 import Contact from "./pages/Contact";
+import CommunityGuidelines from "./pages/CommunityGuidelines";
+import SafetyCentre from "./pages/SafetyCentre";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfUse from "./pages/TermsOfUse";
+import Settings from "./pages/Settings";
+import SafetyVerification from "./pages/SafetyVerification";
+import SOSSafety from "./pages/SOSSafety";
 
 import {
   useAuth,
 } from "./context/AuthContext";
 
-import CommunityGuidelines from "./pages/CommunityGuidelines";
-import SafetyCentre from "./pages/SafetyCentre";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
-import TermsOfUse from "./pages/TermsOfUse";
+
+// ============================================================
+// PUBLIC DARK PAGES
+//
+// These pages ALWAYS stay in FoodKindl dark mode.
+// Settings do not affect them.
+// ============================================================
+
+const PUBLIC_DARK_PAGES = [
+  "/",
+  "/login",
+  "/register",
+  "/careers",
+  "/contact",
+  "/community-guidelines",
+  "/safety",
+  "/privacy",
+  "/terms",
+];
+
+
+// ============================================================
+// SCROLL TO TOP
+//
+// Every time the route changes, the new page starts from
+// the top of the screen.
+// ============================================================
+
+function ScrollToTop() {
+  const {
+    pathname,
+  } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "instant",
+    });
+  }, [pathname]);
+
+  return null;
+}
+
+
+// ============================================================
+// APP THEME CONTROLLER
+// ============================================================
+
+function ThemeController() {
+  const location =
+    useLocation();
+
+  const [
+    systemDark,
+    setSystemDark,
+  ] = useState(
+    window.matchMedia(
+      "(prefers-color-scheme: dark)"
+    ).matches
+  );
+
+
+  // ----------------------------------------------------------
+  // WATCH OPERATING SYSTEM THEME
+  // ----------------------------------------------------------
+
+  useEffect(() => {
+    const mediaQuery =
+      window.matchMedia(
+        "(prefers-color-scheme: dark)"
+      );
+
+    function handleChange(
+      event
+    ) {
+      setSystemDark(
+        event.matches
+      );
+    }
+
+    mediaQuery.addEventListener(
+      "change",
+      handleChange
+    );
+
+    return () => {
+      mediaQuery.removeEventListener(
+        "change",
+        handleChange
+      );
+    };
+  }, []);
+
+
+  // ----------------------------------------------------------
+  // APPLY THEME
+  // ----------------------------------------------------------
+
+  useEffect(() => {
+    const body =
+      document.body;
+
+    // Remove all old classes first.
+    body.classList.remove(
+      "foodkindl-app-light",
+      "foodkindl-app-dark",
+      "foodkindl-public-dark"
+    );
+
+    // Remove old global theme attribute.
+    // This prevents the landing page from turning white.
+    document.documentElement
+      .removeAttribute(
+        "data-theme"
+      );
+
+
+    // --------------------------------------------------------
+    // PUBLIC WEBSITE
+    // ALWAYS DARK
+    // --------------------------------------------------------
+
+    if (
+      PUBLIC_DARK_PAGES.includes(
+        location.pathname
+      )
+    ) {
+      body.classList.add(
+        "foodkindl-public-dark"
+      );
+
+      return;
+    }
+
+
+    // --------------------------------------------------------
+    // LOGGED-IN APP THEME
+    // --------------------------------------------------------
+
+    const savedTheme =
+      localStorage.getItem(
+        "foodkindl_theme"
+      ) || "dark";
+
+    let resolvedTheme =
+      savedTheme;
+
+    if (
+      savedTheme === "system"
+    ) {
+      resolvedTheme =
+        systemDark
+          ? "dark"
+          : "light";
+    }
+
+    body.classList.add(
+      resolvedTheme === "light"
+        ? "foodkindl-app-light"
+        : "foodkindl-app-dark"
+    );
+  }, [
+    location.pathname,
+    systemDark,
+  ]);
+
+  return null;
+}
+
 
 // ============================================================
 // PROTECTED ROUTE
@@ -39,12 +217,10 @@ import TermsOfUse from "./pages/TermsOfUse";
 function Protected({
   children,
 }) {
-
   const {
     user,
     loading,
   } = useAuth();
-
 
   if (loading) {
     return (
@@ -53,7 +229,6 @@ function Protected({
       </main>
     );
   }
-
 
   return user
     ? children
@@ -73,12 +248,10 @@ function Protected({
 function VerifiedOnly({
   children,
 }) {
-
   const {
     user,
     loading,
   } = useAuth();
-
 
   if (loading) {
     return (
@@ -87,7 +260,6 @@ function VerifiedOnly({
       </main>
     );
   }
-
 
   if (!user) {
     return (
@@ -98,12 +270,10 @@ function VerifiedOnly({
     );
   }
 
-
   const approved =
     user?.profile?.is_verified === true &&
     user?.profile?.verification_status ===
       "approved";
-
 
   return approved
     ? children
@@ -121,19 +291,12 @@ function VerifiedOnly({
 // ============================================================
 
 export default function App() {
-
   const {
     user,
   } = useAuth();
 
-
   const location =
     useLocation();
-
-
-  // ==========================================================
-  // VERIFIED STATUS
-  // ==========================================================
 
   const verified =
     user?.profile?.is_verified === true &&
@@ -142,14 +305,7 @@ export default function App() {
 
 
   // ==========================================================
-  // HIDE MESSAGING ON PUBLIC PAGES
-  //
-  // Messaging will NOT appear on:
-  // - Landing Page
-  // - Login
-  // - Register
-  // - Careers
-  // - Contact Us
+  // MESSAGING HIDDEN ON PUBLIC PAGES
   // ==========================================================
 
   const hideMessaging = [
@@ -171,6 +327,20 @@ export default function App() {
     <>
 
       {/* =====================================================
+          SCROLL TO TOP ON ROUTE CHANGE
+      ===================================================== */}
+
+      <ScrollToTop />
+
+
+      {/* =====================================================
+          THEME CONTROLLER
+      ===================================================== */}
+
+      <ThemeController />
+
+
+      {/* =====================================================
           NAVBAR
       ===================================================== */}
 
@@ -184,54 +354,80 @@ export default function App() {
       <Routes>
 
 
-       {/* ===================================================
-    PUBLIC PAGES
-=================================================== */}
+        {/* ===================================================
+            PUBLIC DARK WEBSITE
+        =================================================== */}
 
-<Route
-  path="/"
-  element={<LandingPage />}
-/>
+        <Route
+          path="/"
+          element={
+            <LandingPage />
+          }
+        />
 
-<Route
-  path="/careers"
-  element={<Careers />}
-/>
 
-<Route
-  path="/contact"
-  element={<Contact />}
-/>
+        <Route
+          path="/careers"
+          element={
+            <Careers />
+          }
+        />
 
-<Route
-  path="/community-guidelines"
-  element={<CommunityGuidelines />}
-/>
 
-<Route
-  path="/safety"
-  element={<SafetyCentre />}
-/>
+        <Route
+          path="/contact"
+          element={
+            <Contact />
+          }
+        />
 
-<Route
-  path="/privacy"
-  element={<PrivacyPolicy />}
-/>
 
-<Route
-  path="/terms"
-  element={<TermsOfUse />}
-/>
+        <Route
+          path="/community-guidelines"
+          element={
+            <CommunityGuidelines />
+          }
+        />
 
-<Route
-  path="/login"
-  element={<Login />}
-/>
 
-<Route
-  path="/register"
-  element={<Register />}
-/>
+        <Route
+          path="/safety"
+          element={
+            <SafetyCentre />
+          }
+        />
+
+
+        <Route
+          path="/privacy"
+          element={
+            <PrivacyPolicy />
+          }
+        />
+
+
+        <Route
+          path="/terms"
+          element={
+            <TermsOfUse />
+          }
+        />
+
+
+        <Route
+          path="/login"
+          element={
+            <Login />
+          }
+        />
+
+
+        <Route
+          path="/register"
+          element={
+            <Register />
+          }
+        />
 
 
         {/* ===================================================
@@ -243,6 +439,48 @@ export default function App() {
           element={
             <Protected>
               <Dashboard />
+            </Protected>
+          }
+        />
+
+
+        {/* ===================================================
+            SETTINGS
+        =================================================== */}
+
+        <Route
+          path="/settings"
+          element={
+            <Protected>
+              <Settings />
+            </Protected>
+          }
+        />
+
+
+        {/* ===================================================
+            SAFETY VERIFICATION
+        =================================================== */}
+
+        <Route
+          path="/safety-verification"
+          element={
+            <Protected>
+              <SafetyVerification />
+            </Protected>
+          }
+        />
+
+
+        {/* ===================================================
+            SOS SAFETY
+        =================================================== */}
+
+        <Route
+          path="/sos-safety"
+          element={
+            <Protected>
+              <SOSSafety />
             </Protected>
           }
         />
@@ -278,9 +516,6 @@ export default function App() {
 
         {/* ===================================================
             COMMUNIQ
-
-            Login required.
-            Government ID verification NOT required.
         =================================================== */}
 
         <Route
@@ -304,9 +539,7 @@ export default function App() {
 
 
         {/* ===================================================
-            CONNECT
-
-            Government ID verification required.
+            CIRCLES
         =================================================== */}
 
         <Route
@@ -376,16 +609,6 @@ export default function App() {
 
       {/* =====================================================
           PRIVATE MESSAGING
-
-          Messaging appears ONLY when:
-
-          1. User is verified
-          2. Page is NOT:
-             /
-             /login
-             /register
-             /careers
-             /contact
       ===================================================== */}
 
       {

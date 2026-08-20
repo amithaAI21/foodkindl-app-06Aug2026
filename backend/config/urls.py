@@ -34,6 +34,13 @@ urlpatterns = [
         "api/website/",
         include("website.urls"),
     ),
+    
+    path(
+        "api/safety/",
+        include(
+            "safety.urls"
+        ),
+    ),
 ]
 
 

@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 from django.db import transaction
 
 from rest_framework import serializers
+
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import Profile
@@ -12,17 +13,31 @@ from .models import Profile
 # PROFILE SERIALIZER
 # ============================================================
 
-class ProfileSerializer(serializers.ModelSerializer):
+class ProfileSerializer(
+    serializers.ModelSerializer
+):
 
     government_id_uploaded = (
         serializers.SerializerMethodField()
     )
 
+
+    blocked_users_count = (
+        serializers.SerializerMethodField()
+    )
+
+
     class Meta:
+
         model = Profile
 
+
         fields = (
-            # Normal profile fields
+
+            # =================================================
+            # PROFILE
+            # =================================================
+
             "bio",
             "city",
             "locality",
@@ -34,16 +49,27 @@ class ProfileSerializer(serializers.ModelSerializer):
             "dietary_preference",
             "women_only_mode",
 
-            # -----------------------------------------------
-            # OLD DJANGO PROFILE PHOTOS
-            # -----------------------------------------------
+
+            # =================================================
+            # SAFETY
+            # =================================================
+
+            "blocked_users_count",
+
+
+            # =================================================
+            # LEGACY PROFILE PHOTOS
+            # =================================================
+
             "profile_image_1",
             "profile_image_2",
             "profile_image_3",
 
-            # -----------------------------------------------
-            # NETLIFY BLOB PROFILE PHOTOS
-            # -----------------------------------------------
+
+            # =================================================
+            # NETLIFY PROFILE PHOTOS
+            # =================================================
+
             "profile_image_1_blob_key",
             "profile_image_1_url",
 
@@ -53,14 +79,18 @@ class ProfileSerializer(serializers.ModelSerializer):
             "profile_image_3_blob_key",
             "profile_image_3_url",
 
-            # -----------------------------------------------
-            # OLD GOVERNMENT ID
-            # -----------------------------------------------
+
+            # =================================================
+            # LEGACY GOVERNMENT ID
+            # =================================================
+
             "government_id",
 
-            # -----------------------------------------------
-            # NETLIFY BLOB GOVERNMENT ID
-            # -----------------------------------------------
+
+            # =================================================
+            # NETLIFY GOVERNMENT ID
+            # =================================================
+
             "government_id_blob_key",
             "government_id_original_name",
             "government_id_content_type",
@@ -68,26 +98,41 @@ class ProfileSerializer(serializers.ModelSerializer):
             "government_id_uploaded",
             "government_id_type",
 
-            # Verification
+
+            # =================================================
+            # VERIFICATION
+            # =================================================
+
             "verification_status",
             "is_verified",
             "verified_at",
             "rejection_reason",
+
         )
 
+
         read_only_fields = (
+
             "government_id_uploaded",
+
+            "blocked_users_count",
+
             "verification_status",
+
             "is_verified",
+
             "verified_at",
+
             "rejection_reason",
+
         )
+
 
         extra_kwargs = {
 
-            # -----------------------------------------------
-            # Legacy Django photos
-            # -----------------------------------------------
+            # =================================================
+            # LEGACY PHOTOS
+            # =================================================
 
             "profile_image_1": {
                 "required": False,
@@ -104,9 +149,10 @@ class ProfileSerializer(serializers.ModelSerializer):
                 "allow_null": True,
             },
 
-            # -----------------------------------------------
-            # Blob profile photo 1
-            # -----------------------------------------------
+
+            # =================================================
+            # BLOB PHOTO 1
+            # =================================================
 
             "profile_image_1_blob_key": {
                 "required": False,
@@ -118,9 +164,10 @@ class ProfileSerializer(serializers.ModelSerializer):
                 "allow_blank": True,
             },
 
-            # -----------------------------------------------
-            # Blob profile photo 2
-            # -----------------------------------------------
+
+            # =================================================
+            # BLOB PHOTO 2
+            # =================================================
 
             "profile_image_2_blob_key": {
                 "required": False,
@@ -132,9 +179,10 @@ class ProfileSerializer(serializers.ModelSerializer):
                 "allow_blank": True,
             },
 
-            # -----------------------------------------------
-            # Blob profile photo 3
-            # -----------------------------------------------
+
+            # =================================================
+            # BLOB PHOTO 3
+            # =================================================
 
             "profile_image_3_blob_key": {
                 "required": False,
@@ -146,9 +194,10 @@ class ProfileSerializer(serializers.ModelSerializer):
                 "allow_blank": True,
             },
 
-            # -----------------------------------------------
-            # Legacy Government ID
-            # -----------------------------------------------
+
+            # =================================================
+            # LEGACY GOVERNMENT ID
+            # =================================================
 
             "government_id": {
                 "write_only": True,
@@ -156,9 +205,10 @@ class ProfileSerializer(serializers.ModelSerializer):
                 "allow_null": True,
             },
 
-            # -----------------------------------------------
-            # Blob Government ID
-            # -----------------------------------------------
+
+            # =================================================
+            # NETLIFY GOVERNMENT ID
+            # =================================================
 
             "government_id_blob_key": {
                 "write_only": True,
@@ -182,7 +232,23 @@ class ProfileSerializer(serializers.ModelSerializer):
                 "required": False,
                 "allow_blank": True,
             },
+
         }
+
+
+    # ========================================================
+    # BLOCKED COUNT
+    # ========================================================
+
+    def get_blocked_users_count(
+        self,
+        obj,
+    ):
+
+        return (
+            obj.blocked_users.count()
+        )
+
 
     # ========================================================
     # GOVERNMENT ID UPLOADED
@@ -192,38 +258,52 @@ class ProfileSerializer(serializers.ModelSerializer):
         self,
         obj,
     ):
+
         return bool(
             obj.government_id_blob_key
             or obj.government_id
         )
 
+
     # ========================================================
-    # LEGACY IMAGE VALIDATION
+    # IMAGE VALIDATION
     # ========================================================
 
     def validate_profile_image_1(
         self,
         uploaded_file,
     ):
-        return self.validate_profile_image(
-            uploaded_file
+
+        return (
+            self.validate_profile_image(
+                uploaded_file
+            )
         )
+
 
     def validate_profile_image_2(
         self,
         uploaded_file,
     ):
-        return self.validate_profile_image(
-            uploaded_file
+
+        return (
+            self.validate_profile_image(
+                uploaded_file
+            )
         )
+
 
     def validate_profile_image_3(
         self,
         uploaded_file,
     ):
-        return self.validate_profile_image(
-            uploaded_file
+
+        return (
+            self.validate_profile_image(
+                uploaded_file
+            )
         )
+
 
     def validate_profile_image(
         self,
@@ -233,14 +313,21 @@ class ProfileSerializer(serializers.ModelSerializer):
         if not uploaded_file:
             return uploaded_file
 
+
         maximum_size = (
             10 * 1024 * 1024
         )
 
-        if uploaded_file.size > maximum_size:
+
+        if (
+            uploaded_file.size >
+            maximum_size
+        ):
+
             raise serializers.ValidationError(
                 "Profile image must be smaller than 10 MB."
             )
+
 
         allowed_types = {
             "image/jpeg",
@@ -248,24 +335,30 @@ class ProfileSerializer(serializers.ModelSerializer):
             "image/webp",
         }
 
+
         content_type = getattr(
             uploaded_file,
             "content_type",
             "",
         )
 
+
         if (
             content_type
-            and content_type not in allowed_types
+            and
+            content_type not in allowed_types
         ):
+
             raise serializers.ValidationError(
                 "Upload a JPG, PNG, or WebP image."
             )
 
+
         return uploaded_file
 
+
     # ========================================================
-    # LEGACY GOVERNMENT ID VALIDATION
+    # GOVERNMENT ID VALIDATION
     # ========================================================
 
     def validate_government_id(
@@ -276,14 +369,21 @@ class ProfileSerializer(serializers.ModelSerializer):
         if not uploaded_file:
             return uploaded_file
 
+
         maximum_size = (
             5 * 1024 * 1024
         )
 
-        if uploaded_file.size > maximum_size:
+
+        if (
+            uploaded_file.size >
+            maximum_size
+        ):
+
             raise serializers.ValidationError(
                 "Government ID must be smaller than 5 MB."
             )
+
 
         allowed_types = {
             "image/jpeg",
@@ -292,21 +392,27 @@ class ProfileSerializer(serializers.ModelSerializer):
             "application/pdf",
         }
 
+
         content_type = getattr(
             uploaded_file,
             "content_type",
             "",
         )
 
+
         if (
             content_type
-            and content_type not in allowed_types
+            and
+            content_type not in allowed_types
         ):
+
             raise serializers.ValidationError(
                 "Upload a JPG, PNG, WebP, or PDF document."
             )
 
+
         return uploaded_file
+
 
     # ========================================================
     # VALIDATION
@@ -321,27 +427,35 @@ class ProfileSerializer(serializers.ModelSerializer):
             "government_id"
         )
 
+
         government_id_blob_key = attrs.get(
             "government_id_blob_key"
         )
+
 
         government_id_type = attrs.get(
             "government_id_type"
         )
 
-        # If an existing ID type already exists,
-        # use it when only another profile field is updated.
-        if not government_id_type:
-            if self.instance:
-                government_id_type = (
-                    self.instance.government_id_type
-                )
+
+        if (
+            not government_id_type
+            and self.instance
+        ):
+
+            government_id_type = (
+                self.instance
+                .government_id_type
+            )
+
 
         if (
             government_id
             or government_id_blob_key
         ):
+
             if not government_id_type:
+
                 raise serializers.ValidationError(
                     {
                         "government_id_type":
@@ -349,7 +463,9 @@ class ProfileSerializer(serializers.ModelSerializer):
                     }
                 )
 
+
         return attrs
+
 
     # ========================================================
     # UPDATE
@@ -368,18 +484,20 @@ class ProfileSerializer(serializers.ModelSerializer):
             )
         )
 
+
         new_government_blob = (
             validated_data.get(
                 "government_id_blob_key"
             )
         )
 
-        # ----------------------------------------------------
-        # Explicitly save every supplied field.
-        # This includes Blob URLs and Blob keys.
-        # ----------------------------------------------------
 
-        for field, value in validated_data.items():
+        # Save all supplied fields
+
+        for (
+            field,
+            value,
+        ) in validated_data.items():
 
             setattr(
                 instance,
@@ -387,9 +505,8 @@ class ProfileSerializer(serializers.ModelSerializer):
                 value,
             )
 
-        # ----------------------------------------------------
-        # New government ID means verification is pending.
-        # ----------------------------------------------------
+
+        # New ID requires verification again
 
         if (
             new_government_id
@@ -408,7 +525,9 @@ class ProfileSerializer(serializers.ModelSerializer):
 
             instance.rejection_reason = ""
 
+
         instance.save()
+
 
         return instance
 
@@ -421,17 +540,22 @@ class UserSerializer(
     serializers.ModelSerializer
 ):
 
-    profile = ProfileSerializer(
-        read_only=True
+    profile = (
+        ProfileSerializer(
+            read_only=True
+        )
     )
+
 
     full_name = (
         serializers.SerializerMethodField()
     )
 
+
     class Meta:
 
         model = User
+
 
         fields = (
             "id",
@@ -441,6 +565,7 @@ class UserSerializer(
             "email",
             "profile",
         )
+
 
     def get_full_name(
         self,
@@ -454,6 +579,118 @@ class UserSerializer(
 
 
 # ============================================================
+# BLOCKED MEMBER SERIALIZER
+# ============================================================
+
+class BlockedMemberSerializer(
+    serializers.ModelSerializer
+):
+
+    full_name = (
+        serializers.SerializerMethodField()
+    )
+
+
+    profile_image = (
+        serializers.SerializerMethodField()
+    )
+
+
+    class Meta:
+
+        model = User
+
+
+        fields = (
+            "id",
+            "first_name",
+            "last_name",
+            "full_name",
+            "profile_image",
+        )
+
+
+    def get_full_name(
+        self,
+        obj,
+    ):
+
+        return (
+            obj.get_full_name().strip()
+            or "FoodKindl Member"
+        )
+
+
+    def get_profile_image(
+        self,
+        obj,
+    ):
+
+        profile = getattr(
+            obj,
+            "profile",
+            None,
+        )
+
+
+        if not profile:
+            return None
+
+
+        # Netlify Blob first
+
+        if (
+            profile.profile_image_1_url
+        ):
+
+            return (
+                profile.profile_image_1_url
+            )
+
+
+        # Django fallback
+
+        if (
+            profile.profile_image_1
+        ):
+
+            try:
+
+                image_url = (
+                    profile
+                    .profile_image_1
+                    .url
+                )
+
+            except ValueError:
+
+                return None
+
+
+            request = (
+                self.context.get(
+                    "request"
+                )
+            )
+
+
+            if request:
+
+                return (
+                    request
+                    .build_absolute_uri(
+                        image_url
+                    )
+                )
+
+
+            return image_url
+
+
+        return None
+
+
+# ============================================================
 # REGISTER
 # ============================================================
 
@@ -461,15 +698,19 @@ class RegisterSerializer(
     serializers.ModelSerializer
 ):
 
-    password = serializers.CharField(
-        write_only=True,
-        min_length=6,
-        trim_whitespace=False,
+    password = (
+        serializers.CharField(
+            write_only=True,
+            min_length=6,
+            trim_whitespace=False,
+        )
     )
+
 
     class Meta:
 
         model = User
+
 
         fields = (
             "id",
@@ -479,9 +720,11 @@ class RegisterSerializer(
             "password",
         )
 
+
         read_only_fields = (
             "id",
         )
+
 
     def validate_email(
         self,
@@ -489,8 +732,11 @@ class RegisterSerializer(
     ):
 
         email = (
-            value.strip().lower()
+            value
+            .strip()
+            .lower()
         )
+
 
         if not email:
 
@@ -498,15 +744,22 @@ class RegisterSerializer(
                 "Email is required."
             )
 
-        if User.objects.filter(
-            email__iexact=email
-        ).exists():
+
+        if (
+            User.objects
+            .filter(
+                email__iexact=email
+            )
+            .exists()
+        ):
 
             raise serializers.ValidationError(
                 "An account with this email already exists."
             )
 
+
         return email
+
 
     @transaction.atomic
     def create(
@@ -520,14 +773,20 @@ class RegisterSerializer(
             )
         )
 
+
         email = (
-            validated_data["email"]
+            validated_data[
+                "email"
+            ]
             .strip()
             .lower()
         )
 
+
         user = User(
+
             username=email,
+
             email=email,
 
             first_name=(
@@ -543,37 +802,48 @@ class RegisterSerializer(
                     "",
                 ).strip()
             ),
+
         )
+
 
         user.set_password(
             password
         )
 
+
         user.save()
+
 
         Profile.objects.get_or_create(
             user=user
         )
 
+
         return user
 
 
 # ============================================================
-# EMAIL LOGIN
+# LOGIN
 # ============================================================
 
 class EmailLoginSerializer(
     serializers.Serializer
 ):
 
-    email = serializers.EmailField(
-        write_only=True
+    email = (
+        serializers.EmailField(
+            write_only=True
+        )
     )
 
-    password = serializers.CharField(
-        write_only=True,
-        trim_whitespace=False,
+
+    password = (
+        serializers.CharField(
+            write_only=True,
+            trim_whitespace=False,
+        )
     )
+
 
     def validate(
         self,
@@ -586,9 +856,11 @@ class EmailLoginSerializer(
             .lower()
         )
 
+
         password = (
             attrs["password"]
         )
+
 
         try:
 
@@ -607,9 +879,13 @@ class EmailLoginSerializer(
                 }
             )
 
+
         user = authenticate(
-            request=self.context.get(
-                "request"
+
+            request=(
+                self.context.get(
+                    "request"
+                )
             ),
 
             username=(
@@ -617,7 +893,9 @@ class EmailLoginSerializer(
             ),
 
             password=password,
+
         )
+
 
         if user is None:
 
@@ -628,6 +906,7 @@ class EmailLoginSerializer(
                 }
             )
 
+
         if not user.is_active:
 
             raise serializers.ValidationError(
@@ -637,9 +916,11 @@ class EmailLoginSerializer(
                 }
             )
 
+
         Profile.objects.get_or_create(
             user=user
         )
+
 
         refresh = (
             RefreshToken.for_user(
@@ -647,7 +928,9 @@ class EmailLoginSerializer(
             )
         )
 
+
         return {
+
             "refresh":
                 str(refresh),
 
@@ -661,4 +944,5 @@ class EmailLoginSerializer(
                     user,
                     context=self.context,
                 ).data,
+
         }

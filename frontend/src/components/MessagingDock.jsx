@@ -46,6 +46,11 @@ export default function MessagingDock() {
 
   const [error, setError] = useState("");
 
+  const [
+    blockedConversationIds,
+    setBlockedConversationIds,
+  ] = useState(() => new Set());
+
   const refreshTimerRef = useRef(null);
   const activeChatsRef = useRef([]);
 
@@ -91,7 +96,8 @@ export default function MessagingDock() {
 
   function getUserImage(currentUser) {
     return getMediaUrl(
-      currentUser?.profile?.profile_image_1
+      currentUser?.profile?.profile_image_1_url ||
+        currentUser?.profile?.profile_image_1
     );
   }
 
@@ -154,6 +160,42 @@ export default function MessagingDock() {
       data?.detail ||
       "The request could not be completed."
     );
+  }
+
+  async function getBlockStatus(memberId) {
+    if (!memberId) {
+      return {
+        blocked_by_me: false,
+        interaction_blocked: false,
+      };
+    }
+
+    try {
+      const response = await api.get(
+        `/auth/block-status/${memberId}/`
+      );
+
+      return {
+        blocked_by_me:
+          response.data?.blocked_by_me === true,
+
+        interaction_blocked:
+          response.data?.interaction_blocked === true,
+      };
+    } catch (requestError) {
+      console.error(
+        "Unable to check block status:",
+        requestError.response?.data ||
+          requestError
+      );
+
+      // Safer fallback: if status cannot be checked,
+      // do not allow a direct message to be sent.
+      return {
+        blocked_by_me: false,
+        interaction_blocked: true,
+      };
+    }
   }
 
   function isGroupConversation(conversation) {
@@ -321,7 +363,7 @@ export default function MessagingDock() {
   );
 
   const openConversation = useCallback(
-    (conversation) => {
+    async (conversation) => {
       if (!conversation?.id) {
         return;
       }
@@ -352,6 +394,30 @@ export default function MessagingDock() {
         return [conversation];
       });
 
+      if (!isGroupConversation(conversation)) {
+        const otherUserId =
+          conversation?.other_user?.id;
+
+        if (otherUserId) {
+          const blockStatus =
+            await getBlockStatus(otherUserId);
+
+          setBlockedConversationIds(
+            (currentIds) => {
+              const nextIds = new Set(currentIds);
+
+              if (blockStatus.interaction_blocked) {
+                nextIds.add(conversation.id);
+              } else {
+                nextIds.delete(conversation.id);
+              }
+
+              return nextIds;
+            }
+          );
+        }
+      }
+
       loadMessages(conversation.id);
     },
     [loadMessages]
@@ -377,6 +443,16 @@ export default function MessagingDock() {
       setError("");
 
       try {
+        const blockStatus =
+          await getBlockStatus(member.id);
+
+        if (blockStatus.interaction_blocked) {
+          setError(
+            "Messaging is not available with this member."
+          );
+          return;
+        }
+
         const response = await api.post(
           "/conversations/",
           {
@@ -384,7 +460,7 @@ export default function MessagingDock() {
           }
         );
 
-        openConversation(response.data);
+        await openConversation(response.data);
 
         await Promise.all([
           loadConversations(),
@@ -396,6 +472,13 @@ export default function MessagingDock() {
           requestError.response?.data ||
             requestError
         );
+
+        if (requestError.response?.status === 403) {
+          setError(
+            "Messaging is not available with this member."
+          );
+          return;
+        }
 
         setError(
           getErrorMessage(
@@ -614,7 +697,11 @@ export default function MessagingDock() {
     event.preventDefault();
 
     const conversationId =
-      conversation.id;
+      conversation?.id;
+
+    if (!conversationId) {
+      return;
+    }
 
     const text =
       drafts[conversationId]?.trim();
@@ -631,6 +718,36 @@ export default function MessagingDock() {
         "This group chat has expired and no longer accepts messages."
       );
       return;
+    }
+
+    if (!isGroupConversation(conversation)) {
+      const otherUserId =
+        conversation?.other_user?.id;
+
+      if (!otherUserId) {
+        setError(
+          "The recipient could not be identified."
+        );
+        return;
+      }
+
+      const blockStatus =
+        await getBlockStatus(otherUserId);
+
+      if (blockStatus.interaction_blocked) {
+        setBlockedConversationIds(
+          (currentIds) => {
+            const nextIds = new Set(currentIds);
+            nextIds.add(conversationId);
+            return nextIds;
+          }
+        );
+
+        setError(
+          "Messaging is not available with this member."
+        );
+        return;
+      }
     }
 
     setSendingConversationId(
@@ -670,6 +787,21 @@ export default function MessagingDock() {
         requestError.response?.data ||
           requestError
       );
+
+      if (requestError.response?.status === 403) {
+        setBlockedConversationIds(
+          (currentIds) => {
+            const nextIds = new Set(currentIds);
+            nextIds.add(conversationId);
+            return nextIds;
+          }
+        );
+
+        setError(
+          "Messaging is not available with this member."
+        );
+        return;
+      }
 
       setError(
         getErrorMessage(
@@ -939,9 +1071,18 @@ export default function MessagingDock() {
               sendingConversationId ===
               conversation.id;
 
+            const blockedChat =
+              !groupChat &&
+              blockedConversationIds.has(
+                conversation.id
+              );
+
             const chatDisabled =
-              groupChat &&
-              !conversation.is_active;
+              (
+                groupChat &&
+                !conversation.is_active
+              ) ||
+              blockedChat;
 
             return (
               <section
@@ -1064,9 +1205,15 @@ export default function MessagingDock() {
 
                 {chatDisabled ? (
                   <div className="chat-expired-message">
-                    This food group chat has
-                    expired because the food was
-                    collected.
+                    {blockedChat
+                      ? "Messaging is not available with this member."
+                      : (
+                          <>
+                            This food group chat has
+                            expired because the food was
+                            collected.
+                          </>
+                        )}
                   </div>
                 ) : (
                   <form
