@@ -6,18 +6,15 @@ import dj_database_url
 from dotenv import load_dotenv
 
 
-FAST2SMS_API_KEY = os.environ.get(
-    "FAST2SMS_API_KEY",
-    "",
-)
 # ============================================================
 # BASE
 # ============================================================
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# override=True ensures local .env values override
-# environment variables already present on Windows.
+# Load local .env file.
+# Render environment variables will be available through
+# os.environ in production.
 load_dotenv(BASE_DIR / ".env", override=True)
 
 
@@ -26,13 +23,45 @@ load_dotenv(BASE_DIR / ".env", override=True)
 # ============================================================
 
 def get_env_list(name, default=""):
-    value = os.environ.get(name, default)
+    """
+    Read a comma-separated environment variable and
+    return a clean Python list.
 
+    Supports:
+    - string
+    - tuple
+    - list
+    """
+
+    value = os.environ.get(name)
+
+    if value is None:
+        value = default
+
+    # If the default/value is already a list or tuple
+    if isinstance(value, (list, tuple)):
+        return [
+            str(item).strip().rstrip("/")
+            for item in value
+            if str(item).strip()
+        ]
+
+    # Environment variables normally arrive as strings
     return [
         item.strip().rstrip("/")
-        for item in value.split(",")
+        for item in str(value).split(",")
         if item.strip()
     ]
+
+
+# ============================================================
+# FAST2SMS
+# ============================================================
+
+FAST2SMS_API_KEY = os.environ.get(
+    "FAST2SMS_API_KEY",
+    "",
+)
 
 
 # ============================================================
@@ -55,10 +84,10 @@ DEBUG = (
 ALLOWED_HOSTS = get_env_list(
     "DJANGO_ALLOWED_HOSTS",
     (
-        "127.0.0.1,"
-        "localhost,"
-        "foodkindl-app-06aug2026.onrender.com,"
-        ".onrender.com"
+        "127.0.0.1",
+        "localhost",
+        "foodkindl-app-06aug2026.onrender.com",
+        ".onrender.com",
     ),
 )
 
@@ -279,17 +308,16 @@ MEDIA_ROOT = BASE_DIR / "media"
 # CORS
 # ============================================================
 
-
 CORS_ALLOWED_ORIGINS = get_env_list(
     "CORS_ALLOWED_ORIGINS",
     (
-        "http://localhost:5173,"
-        "http://127.0.0.1:5173,"
-        "http://localhost:8888,"
-        "http://127.0.0.1:8888,"
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8888",
+        "http://127.0.0.1:8888",
         "https://foodkindlapp.netlify.app",
-         "https://foodkindl.org",
-    "https://www.foodkindl.org",
+        "https://foodkindl.org",
+        "https://www.foodkindl.org",
     ),
 )
 
@@ -300,18 +328,17 @@ CORS_ALLOW_CREDENTIALS = True
 # CSRF
 # ============================================================
 
-
 CSRF_TRUSTED_ORIGINS = get_env_list(
     "CSRF_TRUSTED_ORIGINS",
     (
-        "http://localhost:5173,"
-        "http://127.0.0.1:5173,"
-        "http://localhost:8888,"
-        "http://127.0.0.1:8888,"
-        "https://foodkindlapp.netlify.app,"
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8888",
+        "http://127.0.0.1:8888",
+        "https://foodkindlapp.netlify.app",
         "https://foodkindl-app-06aug2026.onrender.com",
         "https://foodkindl.org",
-    "https://www.foodkindl.org",
+        "https://www.foodkindl.org",
     ),
 )
 
@@ -503,6 +530,20 @@ if DEBUG:
     print("======================================")
     print("FOODKINDL LOCAL DEVELOPMENT")
     print("DEBUG:", DEBUG)
-    print("SECURE_SSL_REDIRECT:", SECURE_SSL_REDIRECT)
-    print("ALLOWED_HOSTS:", ALLOWED_HOSTS)
+    print(
+        "SECURE_SSL_REDIRECT:",
+        SECURE_SSL_REDIRECT,
+    )
+    print(
+        "ALLOWED_HOSTS:",
+        ALLOWED_HOSTS,
+    )
+    print(
+        "CORS_ALLOWED_ORIGINS:",
+        CORS_ALLOWED_ORIGINS,
+    )
+    print(
+        "CSRF_TRUSTED_ORIGINS:",
+        CSRF_TRUSTED_ORIGINS,
+    )
     print("======================================")
